@@ -14,7 +14,6 @@ import {
 import './App.css';
 
 function App() {
-  const [activeTheme, setActiveTheme] = useState('violet');
   const [mode, setMode] = useState('light'); // default to light mode as shown in the screenshot
 
   useEffect(() => {
@@ -33,8 +32,6 @@ function App() {
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-violet-500 selection:text-white transition-colors duration-300">
       {/* Navigation Header */}
       <Navbar 
-        activeTheme={activeTheme} 
-        onSelectTheme={setActiveTheme}
         mode={mode}
         onToggleMode={toggleMode}
       />
@@ -47,7 +44,7 @@ function App() {
         <div className="max-w-7xl mx-auto text-center space-y-12">
           <div className="space-y-4 max-w-2xl mx-auto">
             <span className="text-xs font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-widest bg-violet-500/10 px-3 py-1 rounded-full border border-violet-500/20">
-              Why BudgetPulse
+              Why Spendzy
             </span>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight text-foreground">
               Designed to make financial clarity effortless
@@ -115,7 +112,7 @@ function App() {
       {/* Footer */}
       <footer className="border-t border-border py-10 px-6 text-center text-xs text-muted-foreground">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <p>© {new Date().getFullYear()} BudgetPulse. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Spendzy. All rights reserved.</p>
           <p className="text-muted-foreground">
             Background pattern by{' '}
             <a 

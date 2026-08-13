@@ -7,7 +7,7 @@ import {
   ShieldCheck, 
   Zap, 
   PieChart, 
-  DollarSign, 
+  IndianRupee, 
   CreditCard,
   CheckCircle2,
   Lock,
@@ -43,7 +43,7 @@ export default function Hero({ activeTheme = 'violet' }) {
           >
             <span className="flex h-2 w-2 rounded-full bg-current animate-ping" />
             <Sparkles className="h-3.5 w-3.5" />
-            <span>Introducing BudgetPulse 2.0 with AI Insights</span>
+            <span>Introducing Spendzy 2.0 with AI Insights</span>
             <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
           </a>
         </div>
@@ -111,7 +111,7 @@ export default function Hero({ activeTheme = 'violet' }) {
                 <span className="h-3 w-3 rounded-full bg-red-500/80" />
                 <span className="h-3 w-3 rounded-full bg-amber-500/80" />
                 <span className="h-3 w-3 rounded-full bg-emerald-500/80" />
-                <span className="ml-3 text-xs font-mono text-gray-400">app.budgetpulse.com/overview</span>
+                <span className="ml-3 text-xs font-mono text-gray-400">app.spendzy.com/overview</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400 border border-emerald-500/20">
@@ -135,9 +135,9 @@ export default function Hero({ activeTheme = 'violet' }) {
                     </span>
                   </div>
                   <div className="mt-2 text-3xl font-extrabold text-white tracking-tight">
-                    $48,290.50
+                    ₹48,290.50
                   </div>
-                  <p className="mt-1 text-xs text-gray-400">+$2,410.00 from last month</p>
+                  <p className="mt-1 text-xs text-gray-400">+₹2,410.00 from last month</p>
                 </div>
 
                 {/* Monthly Income vs Expense Stats */}
@@ -146,14 +146,14 @@ export default function Hero({ activeTheme = 'violet' }) {
                     <div className="flex items-center gap-2 text-emerald-400 text-xs font-medium">
                       <ArrowUpRight className="h-4 w-4" /> Income
                     </div>
-                    <div className="mt-1 text-xl font-bold text-white">$6,450.00</div>
+                    <div className="mt-1 text-xl font-bold text-white">₹64,500.00</div>
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-purple-500/5 p-4">
                     <div className="flex items-center gap-2 text-purple-400 text-xs font-medium">
                       <CreditCard className="h-4 w-4" /> Expenses
                     </div>
-                    <div className="mt-1 text-xl font-bold text-white">$2,180.00</div>
+                    <div className="mt-1 text-xl font-bold text-white">₹21,800.00</div>
                   </div>
                 </div>
 
@@ -166,7 +166,7 @@ export default function Hero({ activeTheme = 'violet' }) {
                   <div className="h-2.5 w-full rounded-full bg-white/10 overflow-hidden">
                     <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 w-[66%] transition-all duration-1000" />
                   </div>
-                  <p className="text-[11px] text-gray-400 mt-2">Great job! On track to save $1,800 extra this month.</p>
+                  <p className="text-[11px] text-gray-400 mt-2">Great job! On track to save ₹18,000 extra this month.</p>
                 </div>
               </div>
 
@@ -175,7 +175,7 @@ export default function Hero({ activeTheme = 'violet' }) {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-emerald-400" /> Instant Savings Calculator
+                      <IndianRupee className="h-4 w-4 text-emerald-400" /> Instant Savings Calculator
                     </h3>
                     <span className="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
                       Interactive
@@ -186,13 +186,13 @@ export default function Hero({ activeTheme = 'violet' }) {
                     <div>
                       <div className="flex justify-between text-xs text-gray-300 mb-1 font-medium">
                         <span>Monthly Income</span>
-                        <span className="text-white font-bold">${monthlyIncome.toLocaleString()}</span>
+                        <span className="text-white font-bold">₹{monthlyIncome.toLocaleString('en-IN')}</span>
                       </div>
                       <input 
                         type="range" 
-                        min="1000" 
-                        max="20000" 
-                        step="500"
+                        min="10000" 
+                        max="200000" 
+                        step="5000"
                         value={monthlyIncome} 
                         onChange={(e) => setMonthlyIncome(Number(e.target.value))}
                         className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-500"
@@ -221,10 +221,10 @@ export default function Hero({ activeTheme = 'violet' }) {
                 <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4 text-center">
                   <span className="text-xs text-gray-300 font-medium">Projected 1-Year Wealth Build</span>
                   <div className="text-2xl font-black text-white mt-1">
-                    ${annualSavings.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    ₹{annualSavings.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </div>
                   <div className="text-[11px] text-gray-300 mt-1">
-                    Monthly savings: <span className="text-emerald-400 font-semibold">${monthlySavings.toLocaleString()}/mo</span>
+                    Monthly savings: <span className="text-emerald-400 font-semibold">₹{monthlySavings.toLocaleString('en-IN')}/mo</span>
                   </div>
                 </div>
               </div>
@@ -250,7 +250,7 @@ export default function Hero({ activeTheme = 'violet' }) {
                           <div className="text-[10px] text-gray-400">Tech & Software</div>
                         </div>
                       </div>
-                      <span className="text-xs font-bold text-red-400">-$14.99</span>
+                      <span className="text-xs font-bold text-red-400">-₹1,499.00</span>
                     </div>
 
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
@@ -263,7 +263,7 @@ export default function Hero({ activeTheme = 'violet' }) {
                           <div className="text-[10px] text-gray-400">Passive Income</div>
                         </div>
                       </div>
-                      <span className="text-xs font-bold text-emerald-400">+$1,250.00</span>
+                      <span className="text-xs font-bold text-emerald-400">+₹1,25,000.00</span>
                     </div>
 
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
@@ -276,7 +276,7 @@ export default function Hero({ activeTheme = 'violet' }) {
                           <div className="text-[10px] text-gray-400">Dining & Lifestyle</div>
                         </div>
                       </div>
-                      <span className="text-xs font-bold text-red-400">-$6.50</span>
+                      <span className="text-xs font-bold text-red-400">-₹650.00</span>
                     </div>
                   </div>
                 </div>
@@ -294,7 +294,7 @@ export default function Hero({ activeTheme = 'violet' }) {
         {/* Social Proof & Metrics Footer */}
         <div className="mt-20 border-t border-white/10 pt-10 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           <div>
-            <div className="text-3xl font-extrabold text-white tracking-tight">$120M+</div>
+            <div className="text-3xl font-extrabold text-white tracking-tight">₹120Cr+</div>
             <div className="text-xs font-medium text-gray-400 mt-1">Monthly Budget Tracked</div>
           </div>
           <div>

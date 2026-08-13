@@ -9,7 +9,7 @@ const HeroSectionDemo = () => {
         Every expense is a choice <br /> between today and tomorrow
       </>
     ),
-    subtitle: 'BudgetPulse helps you master your money flow, track daily expenses, and build long-term financial freedom effortlessly.',
+    subtitle: 'Spendzy helps you master your money flow, track daily expenses, and build long-term financial freedom effortlessly.',
     actions: [
       {
         text: 'Start Tracking Free',
@@ -29,7 +29,7 @@ const HeroSectionDemo = () => {
         icon: <Users className="h-5 w-5 text-muted-foreground" />,
       },
       {
-        value: '$120M+',
+        value: '₹120M+',
         label: 'Tracked Monthly',
         icon: <Briefcase className="h-5 w-5 text-muted-foreground" />,
       },
