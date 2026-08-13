@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import { 
@@ -14,16 +14,18 @@ import {
 import './App.css';
 
 function App() {
-  return (
-    <div className="min-h-screen bg-black text-white font-sans selection:bg-violet-500 selection:text-white">
-      {/* Navigation Header */}
-      <Navbar />
+  const [activeTheme, setActiveTheme] = useState('violet');
 
-      {/* Hero Section with Radial Black-Violet Background */}
-      <Hero />
+  return (
+    <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-violet-500 selection:text-white">
+      {/* Navigation Header */}
+      <Navbar activeTheme={activeTheme} onSelectTheme={setActiveTheme} />
+
+      {/* Hero Section with Elegant Dark Pattern Background */}
+      <Hero activeTheme={activeTheme} />
 
       {/* Features Grid Section */}
-      <section id="features" className="relative py-20 px-6 border-t border-white/10 bg-black/60">
+      <section id="features" className="relative py-20 px-6 border-t border-white/10 bg-black/40">
         <div className="max-w-7xl mx-auto text-center space-y-12">
           <div className="space-y-4 max-w-2xl mx-auto">
             <span className="text-xs font-semibold text-violet-400 uppercase tracking-widest bg-violet-500/10 px-3 py-1 rounded-full border border-violet-500/20">
@@ -73,7 +75,7 @@ function App() {
 
       {/* Call to Action Footer Banner */}
       <section className="relative py-20 px-6 overflow-hidden">
-        <div className="max-w-5xl mx-auto rounded-3xl border border-violet-500/30 bg-gradient-to-r from-violet-950/80 via-black to-purple-950/80 p-10 md:p-16 text-center space-y-6 relative">
+        <div className="max-w-5xl mx-auto rounded-3xl border border-white/15 bg-gradient-to-r from-zinc-900 via-black to-zinc-900 p-10 md:p-16 text-center space-y-6 relative">
           <h2 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight">
             Ready to Take Control of Your Financial Future?
           </h2>
@@ -97,14 +99,14 @@ function App() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <p>© {new Date().getFullYear()} BudgetPulse. All rights reserved.</p>
           <p className="text-gray-400">
-            Background snippet by{' '}
+            Background pattern by{' '}
             <a 
-              href="https://21st.dev/@ibelick/components/background-snippets/background-radial-black-violet" 
+              href="https://21st.dev/@jatin-yadav05/components/elegant-dark-pattern" 
               target="_blank" 
               rel="noreferrer"
               className="text-violet-400 hover:underline"
             >
-              @ibelick on 21st.dev
+              @jatin-yadav05 on 21st.dev
             </a>
           </p>
         </div>

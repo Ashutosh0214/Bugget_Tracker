@@ -14,25 +14,24 @@ import {
   ChevronRight,
   ArrowUpRight
 } from 'lucide-react';
-import BackgroundRadialBlackViolet from './BackgroundRadialBlackViolet';
+import BackgroundElegantDarkPattern, { THEME_PRESETS } from './ElegantDarkPattern';
 
-export default function Hero() {
+export default function Hero({ activeTheme = 'violet' }) {
   const [monthlyIncome, setMonthlyIncome] = useState(5000);
   const [savingsRate, setSavingsRate] = useState(25);
 
   const monthlySavings = (monthlyIncome * savingsRate) / 100;
   const annualSavings = monthlySavings * 12;
 
+  const currentTheme = THEME_PRESETS[activeTheme] || THEME_PRESETS.violet;
+
   return (
     <section className="relative isolate min-h-[92vh] overflow-hidden pt-12 pb-24 text-white">
       {/* 
-        Background Radial Black-Violet Snippet from 21st.dev (@ibelick) 
-        https://21st.dev/@ibelick/components/background-snippets/background-radial-black-violet
+        Elegant Dark Pattern Component from 21st.dev (@jatin-yadav05)
+        https://21st.dev/@jatin-yadav05/components/elegant-dark-pattern
       */}
-      <BackgroundRadialBlackViolet />
-
-      {/* Grid Pattern Overlay for subtle luxury texture */}
-      <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#1f19380a_1px,transparent_1px),linear-gradient(to_bottom,#1f19380a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none" />
+      <BackgroundElegantDarkPattern activeTheme={activeTheme} />
 
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         
@@ -40,12 +39,12 @@ export default function Hero() {
         <div className="flex justify-center">
           <a 
             href="#features" 
-            className="group inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-950/40 px-4 py-1.5 text-xs font-medium text-violet-300 backdrop-blur-md transition-all duration-300 hover:border-violet-500/60 hover:bg-violet-900/50 hover:shadow-lg hover:shadow-violet-500/20"
+            className={`group inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-medium backdrop-blur-md transition-all duration-300 ${currentTheme.badgeBorder}`}
           >
-            <span className="flex h-2 w-2 rounded-full bg-violet-400 animate-ping" />
-            <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+            <span className="flex h-2 w-2 rounded-full bg-current animate-ping" />
+            <Sparkles className="h-3.5 w-3.5" />
             <span>Introducing BudgetPulse 2.0 with AI Insights</span>
-            <ChevronRight className="h-3.5 w-3.5 text-violet-400 group-hover:translate-x-0.5 transition-transform" />
+            <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
           </a>
         </div>
 
@@ -53,7 +52,7 @@ export default function Hero() {
         <div className="mt-8 text-center max-w-4xl mx-auto space-y-6">
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl md:text-7xl leading-[1.1]">
             Master Your Money With{' '}
-            <span className="bg-gradient-to-r from-violet-300 via-purple-400 to-indigo-300 bg-clip-text text-transparent drop-shadow-sm">
+            <span className={`bg-gradient-to-r ${currentTheme.accentText} bg-clip-text text-transparent drop-shadow-sm`}>
               Smart Precision
             </span>
           </h1>
@@ -66,7 +65,7 @@ export default function Hero() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <a
               href="#get-started"
-              className="w-full sm:w-auto group relative inline-flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-8 py-4 text-base font-bold text-white shadow-xl shadow-violet-600/30 transition-all duration-300 hover:shadow-violet-600/50 hover:scale-105 active:scale-95"
+              className={`w-full sm:w-auto group relative inline-flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r ${currentTheme.accentBtn} px-8 py-4 text-base font-bold text-white shadow-xl transition-all duration-300 hover:scale-105 active:scale-95`}
             >
               <span>Start Tracking Free</span>
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
@@ -76,7 +75,7 @@ export default function Hero() {
               href="#demo"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 rounded-2xl border border-white/15 bg-white/5 px-7 py-4 text-base font-semibold text-gray-200 backdrop-blur-xl transition-all duration-300 hover:bg-white/10 hover:text-white hover:border-white/30"
             >
-              <Play className="h-4 w-4 fill-current text-violet-400" />
+              <Play className="h-4 w-4 fill-current text-gray-300" />
               <span>Watch 2-Min Demo</span>
             </a>
           </div>
@@ -88,7 +87,7 @@ export default function Hero() {
               No credit card required
             </span>
             <span className="flex items-center gap-1.5">
-              <Lock className="h-4 w-4 text-violet-400" />
+              <Lock className="h-4 w-4 text-gray-300" />
               Bank-Grade 256-Bit Security
             </span>
             <span className="flex items-center gap-1.5">
@@ -100,11 +99,11 @@ export default function Hero() {
 
         {/* Hero Interactive Preview Card Section */}
         <div className="mt-16 relative">
-          {/* Ambient Purple Background Glow behind Preview */}
-          <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-violet-600/40 via-purple-600/40 to-indigo-600/40 blur-2xl opacity-60 animate-pulse-glow" />
+          {/* Ambient Background Glow behind Preview */}
+          <div className={`absolute -inset-1 rounded-3xl bg-gradient-to-r ${currentTheme.glowClass} blur-2xl opacity-80 animate-pulse-glow`} />
 
           {/* Glass Card Dashboard Window */}
-          <div className="relative rounded-3xl border border-white/15 bg-gradient-to-b from-white/10 to-black/60 p-6 md:p-8 backdrop-blur-2xl shadow-2xl">
+          <div className="relative rounded-3xl border border-white/15 bg-gradient-to-b from-white/10 to-black/70 p-6 md:p-8 backdrop-blur-2xl shadow-2xl">
             
             {/* Top Bar Window Controls */}
             <div className="flex items-center justify-between pb-6 border-b border-white/10 mb-6">
@@ -162,23 +161,23 @@ export default function Hero() {
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
                   <div className="flex justify-between items-center text-xs font-medium mb-2">
                     <span className="text-gray-300">Monthly Budget Goal</span>
-                    <span className="text-violet-300 font-semibold">66% Saved</span>
+                    <span className="text-emerald-300 font-semibold">66% Saved</span>
                   </div>
                   <div className="h-2.5 w-full rounded-full bg-white/10 overflow-hidden">
-                    <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-purple-400 w-[66%] transition-all duration-1000" />
+                    <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 w-[66%] transition-all duration-1000" />
                   </div>
                   <p className="text-[11px] text-gray-400 mt-2">Great job! On track to save $1,800 extra this month.</p>
                 </div>
               </div>
 
               {/* Column 2: Interactive Savings Calculator */}
-              <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-b from-violet-950/40 to-black/60 p-5 backdrop-blur-md flex flex-col justify-between" id="calculator">
+              <div className="rounded-2xl border border-white/15 bg-gradient-to-b from-white/10 to-black/70 p-5 backdrop-blur-md flex flex-col justify-between" id="calculator">
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-violet-400" /> Instant Savings Calculator
+                      <DollarSign className="h-4 w-4 text-emerald-400" /> Instant Savings Calculator
                     </h3>
-                    <span className="text-[10px] uppercase font-bold text-violet-400 bg-violet-500/20 px-2 py-0.5 rounded-full border border-violet-500/30">
+                    <span className="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
                       Interactive
                     </span>
                   </div>
@@ -187,7 +186,7 @@ export default function Hero() {
                     <div>
                       <div className="flex justify-between text-xs text-gray-300 mb-1 font-medium">
                         <span>Monthly Income</span>
-                        <span className="text-violet-300 font-bold">${monthlyIncome.toLocaleString()}</span>
+                        <span className="text-white font-bold">${monthlyIncome.toLocaleString()}</span>
                       </div>
                       <input 
                         type="range" 
@@ -196,14 +195,14 @@ export default function Hero() {
                         step="500"
                         value={monthlyIncome} 
                         onChange={(e) => setMonthlyIncome(Number(e.target.value))}
-                        className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-violet-500"
+                        className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                       />
                     </div>
 
                     <div>
                       <div className="flex justify-between text-xs text-gray-300 mb-1 font-medium">
                         <span>Target Savings Rate</span>
-                        <span className="text-violet-300 font-bold">{savingsRate}%</span>
+                        <span className="text-white font-bold">{savingsRate}%</span>
                       </div>
                       <input 
                         type="range" 
@@ -212,15 +211,15 @@ export default function Hero() {
                         step="5"
                         value={savingsRate} 
                         onChange={(e) => setSavingsRate(Number(e.target.value))}
-                        className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-violet-500"
+                        className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Calculation Output Box */}
-                <div className="mt-6 rounded-xl border border-violet-500/30 bg-violet-900/30 p-4 text-center">
-                  <span className="text-xs text-violet-300 font-medium">Projected 1-Year Wealth Build</span>
+                <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4 text-center">
+                  <span className="text-xs text-gray-300 font-medium">Projected 1-Year Wealth Build</span>
                   <div className="text-2xl font-black text-white mt-1">
                     ${annualSavings.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </div>
@@ -284,7 +283,7 @@ export default function Hero() {
 
                 <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-gray-400">
                   <span>Smart Categorization</span>
-                  <span className="text-violet-300 font-semibold">99.8% Accuracy</span>
+                  <span className="text-emerald-400 font-semibold">99.8% Accuracy</span>
                 </div>
               </div>
 
