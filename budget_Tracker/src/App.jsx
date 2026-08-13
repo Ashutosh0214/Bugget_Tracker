@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
-import Hero from './components/Hero';
+import HeroSectionDemo from '@/components/ui/demo';
 import { 
   Shield, 
   TrendingUp, 
@@ -15,57 +15,75 @@ import './App.css';
 
 function App() {
   const [activeTheme, setActiveTheme] = useState('violet');
+  const [mode, setMode] = useState('light'); // default to light mode as shown in the screenshot
+
+  useEffect(() => {
+    if (mode === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [mode]);
+
+  const toggleMode = () => {
+    setMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-violet-500 selection:text-white">
+    <div className="min-h-screen bg-background text-foreground font-sans selection:bg-violet-500 selection:text-white transition-colors duration-300">
       {/* Navigation Header */}
-      <Navbar activeTheme={activeTheme} onSelectTheme={setActiveTheme} />
+      <Navbar 
+        activeTheme={activeTheme} 
+        onSelectTheme={setActiveTheme}
+        mode={mode}
+        onToggleMode={toggleMode}
+      />
 
-      {/* Hero Section with Elegant Dark Pattern Background */}
-      <Hero activeTheme={activeTheme} />
+      {/* Hero Section */}
+      <HeroSectionDemo />
 
       {/* Features Grid Section */}
-      <section id="features" className="relative py-20 px-6 border-t border-white/10 bg-black/40">
+      <section id="features" className="relative py-20 px-6 border-t border-border bg-muted/30">
         <div className="max-w-7xl mx-auto text-center space-y-12">
           <div className="space-y-4 max-w-2xl mx-auto">
-            <span className="text-xs font-semibold text-violet-400 uppercase tracking-widest bg-violet-500/10 px-3 py-1 rounded-full border border-violet-500/20">
+            <span className="text-xs font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-widest bg-violet-500/10 px-3 py-1 rounded-full border border-violet-500/20">
               Why BudgetPulse
             </span>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight text-white">
+            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight text-foreground">
               Designed to make financial clarity effortless
             </h2>
-            <p className="text-gray-400 text-base">
+            <p className="text-muted-foreground text-base">
               Everything you need to master your money flow, stay on budget, and grow long-term wealth.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
-            <div className="p-8 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl hover:border-violet-500/40 transition-all duration-300 group">
-              <div className="h-12 w-12 rounded-2xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400 mb-6 group-hover:scale-110 transition-transform">
+            <div className="p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-md hover:border-violet-500/40 transition-all duration-300 group">
+              <div className="h-12 w-12 rounded-2xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-500 mb-6 group-hover:scale-110 transition-transform">
                 <Zap className="h-6 w-6" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Automated Categorization</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
+              <h3 className="text-xl font-bold text-foreground mb-2">Automated Categorization</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
                 Connect your accounts seamlessly. Our intelligent engine categorizes expenses in real time without manual spreadsheet data entry.
               </p>
             </div>
 
-            <div className="p-8 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl hover:border-violet-500/40 transition-all duration-300 group">
-              <div className="h-12 w-12 rounded-2xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400 mb-6 group-hover:scale-110 transition-transform">
+            <div className="p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-md hover:border-violet-500/40 transition-all duration-300 group">
+              <div className="h-12 w-12 rounded-2xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-500 mb-6 group-hover:scale-110 transition-transform">
                 <TrendingUp className="h-6 w-6" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Predictive Savings Insights</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
+              <h3 className="text-xl font-bold text-foreground mb-2">Predictive Savings Insights</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
                 Receive proactive recommendations on where you can optimize subscriptions, cut recurring waste, and boost monthly savings.
               </p>
             </div>
 
-            <div className="p-8 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl hover:border-violet-500/40 transition-all duration-300 group">
-              <div className="h-12 w-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 mb-6 group-hover:scale-110 transition-transform">
+            <div className="p-8 rounded-3xl border border-border bg-card shadow-sm hover:shadow-md hover:border-violet-500/40 transition-all duration-300 group">
+              <div className="h-12 w-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-500 mb-6 group-hover:scale-110 transition-transform">
                 <Shield className="h-6 w-6" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Bank-Grade Encryption</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
+              <h3 className="text-xl font-bold text-foreground mb-2">Bank-Grade Encryption</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
                 Your data is protected with end-to-end 256-bit AES encryption. We never sell your personal information or store plain-text credentials.
               </p>
             </div>
@@ -75,7 +93,7 @@ function App() {
 
       {/* Call to Action Footer Banner */}
       <section className="relative py-20 px-6 overflow-hidden">
-        <div className="max-w-5xl mx-auto rounded-3xl border border-white/15 bg-gradient-to-r from-zinc-900 via-black to-zinc-900 p-10 md:p-16 text-center space-y-6 relative">
+        <div className="max-w-5xl mx-auto rounded-3xl border border-border bg-gradient-to-r from-zinc-900 via-black to-zinc-900 p-10 md:p-16 text-center space-y-6 relative text-white">
           <h2 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight">
             Ready to Take Control of Your Financial Future?
           </h2>
@@ -95,16 +113,16 @@ function App() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-10 px-6 text-center text-xs text-gray-500">
+      <footer className="border-t border-border py-10 px-6 text-center text-xs text-muted-foreground">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <p>© {new Date().getFullYear()} BudgetPulse. All rights reserved.</p>
-          <p className="text-gray-400">
+          <p className="text-muted-foreground">
             Background pattern by{' '}
             <a 
               href="https://21st.dev/@jatin-yadav05/components/elegant-dark-pattern" 
               target="_blank" 
               rel="noreferrer"
-              className="text-violet-400 hover:underline"
+              className="text-violet-500 hover:underline"
             >
               @jatin-yadav05 on 21st.dev
             </a>
