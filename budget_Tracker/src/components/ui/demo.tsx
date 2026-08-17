@@ -1,7 +1,11 @@
 import HeroSection from '@/components/ui/hero-section-9';
 import { Users, Briefcase, Link as LinkIcon } from 'lucide-react';
 
-const HeroSectionDemo = () => {
+interface HeroSectionDemoProps {
+  onOpenAuth?: (mode?: 'login' | 'signup') => void;
+}
+
+const HeroSectionDemo = ({ onOpenAuth }: HeroSectionDemoProps) => {
   // Sample data to be passed as props
   const heroData = {
     title: (
@@ -13,12 +17,15 @@ const HeroSectionDemo = () => {
     actions: [
       {
         text: 'Start Tracking Free',
-        onClick: () => alert('Start Tracking Free clicked!'),
+        onClick: () => onOpenAuth ? onOpenAuth('signup') : alert('Start Tracking Free clicked!'),
         variant: 'default' as const,
       },
       {
         text: 'Learn more',
-        onClick: () => alert('Learn More clicked!'),
+        onClick: () => {
+          const el = document.getElementById('features');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        },
         variant: 'outline' as const,
       },
     ],
@@ -60,3 +67,4 @@ const HeroSectionDemo = () => {
 };
 
 export default HeroSectionDemo;
+

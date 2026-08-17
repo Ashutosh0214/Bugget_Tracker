@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
+import AuthModal from './components/AuthModal';
+import DashboardLayout from './components/DashboardLayout';
 import HeroSectionDemo from '@/components/ui/demo';
 import { 
   Shield, 
@@ -14,7 +16,10 @@ import {
 import './App.css';
 
 function App() {
-  const [mode, setMode] = useState('light'); // default to light mode as shown in the screenshot
+  const [mode, setMode] = useState('light'); // default to light mode
+  const [viewMode, setViewMode] = useState('dashboard'); // 'landing' or 'dashboard'
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authInitialMode, setAuthInitialMode] = useState('signup');
 
   useEffect(() => {
     if (mode === 'dark') {
@@ -28,16 +33,33 @@ function App() {
     setMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  const handleOpenAuth = (initialMode = 'signup') => {
+    setAuthInitialMode(initialMode);
+    setAuthModalOpen(true);
+  };
+
+  if (viewMode === 'dashboard') {
+    return (
+      <DashboardLayout
+        mode={mode}
+        onToggleMode={toggleMode}
+        onExitDashboard={() => setViewMode('landing')}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-violet-500 selection:text-white transition-colors duration-300">
       {/* Navigation Header */}
       <Navbar 
         mode={mode}
         onToggleMode={toggleMode}
+        onOpenAuth={handleOpenAuth}
+        onOpenDashboard={() => setViewMode('dashboard')}
       />
 
       {/* Hero Section */}
-      <HeroSectionDemo />
+      <HeroSectionDemo onOpenAuth={handleOpenAuth} />
 
       {/* Features Grid Section */}
       <section id="features" className="relative py-20 px-6 border-t border-border bg-muted/30">
@@ -98,13 +120,14 @@ function App() {
             Join over 50,000 users building wealth with precision. Setup takes less than 30 seconds.
           </p>
           <div className="pt-4 flex justify-center">
-            <a
-              href="#get-started"
-              className="group inline-flex items-center gap-3 rounded-2xl bg-white px-8 py-4 text-base font-bold text-black shadow-2xl transition-all duration-300 hover:bg-gray-100 hover:scale-105 active:scale-95"
+            <button
+              type="button"
+              onClick={() => handleOpenAuth('signup')}
+              className="group inline-flex items-center gap-3 rounded-2xl bg-white px-8 py-4 text-base font-bold text-black shadow-2xl transition-all duration-300 hover:bg-gray-100 hover:scale-105 active:scale-95 cursor-pointer"
             >
               <span>Get Started Free Today</span>
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-            </a>
+            </button>
           </div>
         </div>
       </section>
@@ -126,8 +149,17 @@ function App() {
           </p>
         </div>
       </footer>
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        initialMode={authInitialMode}
+      />
     </div>
   );
 }
 
 export default App;
+
+
