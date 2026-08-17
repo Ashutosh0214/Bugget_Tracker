@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './sideBar';
 import CustomSelect from './ui/CustomSelect';
+import { useAuth } from '../context/AuthContext';
+import { transactionApi } from '../lib/api';
+
 import { 
   Search, 
   Bell, 

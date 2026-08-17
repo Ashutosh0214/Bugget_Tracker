@@ -32,6 +32,17 @@ app.add_middleware(
 app.include_router(auth_router.router)
 app.include_router(transaction_router.router)
 
+# Custom Exception Handler for clean error messages in Frontend
+from fastapi.exceptions import HTTPException
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request, exc):
+    if isinstance(exc.detail, dict) and "message" in exc.detail:
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+    return JSONResponse(status_code=exc.status_code, content={"message": str(exc.detail)})
+
+
 # Healthcheck Endpoint
 @app.get("/api/health")
 def health_check():
