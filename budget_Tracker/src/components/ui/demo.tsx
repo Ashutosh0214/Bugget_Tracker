@@ -1,4 +1,5 @@
 import HeroSection from '@/components/ui/hero-section-9';
+import TextAnimation from '@/components/ui/staggerText';
 import { Users, Briefcase, Link as LinkIcon } from 'lucide-react';
 
 interface HeroSectionDemoProps {
@@ -6,14 +7,17 @@ interface HeroSectionDemoProps {
 }
 
 const HeroSectionDemo = ({ onOpenAuth }: HeroSectionDemoProps) => {
-  // Sample data to be passed as props
   const heroData = {
     title: (
-      <>
-        Every expense is a choice <br /> between today and tomorrow
-      </>
+      <TextAnimation divideBy="word" delay={0.1}>
+        Every expense is a choice between today and tomorrow
+      </TextAnimation>
     ),
-    subtitle: 'Spendzy helps you master your money flow, track daily expenses, and build long-term financial freedom effortlessly.',
+    subtitle: (
+      <TextAnimation divideBy="word" delay={0.25}>
+        Spendze helps you master your money flow, track daily expenses, and build long-term financial freedom effortlessly.
+      </TextAnimation>
+    ) as any,
     actions: [
       {
         text: 'Start Tracking Free',
@@ -67,4 +71,3 @@ const HeroSectionDemo = ({ onOpenAuth }: HeroSectionDemoProps) => {
 };
 
 export default HeroSectionDemo;
-

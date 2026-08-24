@@ -1,10 +1,5 @@
 import React from 'react';
 
-/**
- * Background Radial Black-Violet Component
- * Source: https://21st.dev/@ibelick/components/background-snippets/background-radial-black-violet
- * By @ibelick (Julien Thibeaut)
- */
 export default function BackgroundRadialBlackViolet() {
   return (
     <div 

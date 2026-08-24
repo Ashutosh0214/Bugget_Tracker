@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
+import TextAnimation from '@/components/ui/staggerText';
 import { 
   Sparkles, 
   ArrowRight, 
   Play, 
   TrendingUp, 
-  ShieldCheck, 
   Zap, 
   PieChart, 
   IndianRupee, 
@@ -14,11 +14,15 @@ import {
   ChevronRight,
   ArrowUpRight
 } from 'lucide-react';
-import BackgroundElegantDarkPattern, { THEME_PRESETS } from './ElegantDarkPattern';
+import BackgroundElegantDarkPattern, { THEME_PRESETS, ThemePresetKey } from './ElegantDarkPattern';
 
-export default function Hero({ activeTheme = 'violet' }) {
-  const [monthlyIncome, setMonthlyIncome] = useState(5000);
-  const [savingsRate, setSavingsRate] = useState(25);
+export interface HeroProps {
+  activeTheme?: ThemePresetKey;
+}
+
+export default function Hero({ activeTheme = 'violet' }: HeroProps) {
+  const [monthlyIncome, setMonthlyIncome] = useState<number>(5000);
+  const [savingsRate, setSavingsRate] = useState<number>(25);
 
   const monthlySavings = (monthlyIncome * savingsRate) / 100;
   const annualSavings = monthlySavings * 12;
@@ -27,10 +31,6 @@ export default function Hero({ activeTheme = 'violet' }) {
 
   return (
     <section className="relative isolate min-h-[92vh] overflow-hidden pt-12 pb-24 text-white">
-      {/* 
-        Elegant Dark Pattern Component from 21st.dev (@jatin-yadav05)
-        https://21st.dev/@jatin-yadav05/components/elegant-dark-pattern
-      */}
       <BackgroundElegantDarkPattern activeTheme={activeTheme} />
 
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
@@ -43,7 +43,11 @@ export default function Hero({ activeTheme = 'violet' }) {
           >
             <span className="flex h-2 w-2 rounded-full bg-current animate-ping" />
             <Sparkles className="h-3.5 w-3.5" />
-            <span>Introducing Spendzy 2.0 with AI Insights</span>
+            <span>
+              <TextAnimation divideBy="word" delay={0.1}>
+                Introducing Spendzy 2.0 with AI Insights
+              </TextAnimation>
+            </span>
             <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
           </a>
         </div>
@@ -51,14 +55,15 @@ export default function Hero({ activeTheme = 'violet' }) {
         {/* Hero Headline & Subtitle */}
         <div className="mt-8 text-center max-w-4xl mx-auto space-y-6">
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl md:text-7xl leading-[1.1]">
-            Master Your Money With{' '}
-            <span className={`bg-gradient-to-r ${currentTheme.accentText} bg-clip-text text-transparent drop-shadow-sm`}>
-              Smart Precision
-            </span>
+            <TextAnimation divideBy="word" delay={0.15}>
+              Master Your Money With Smart Precision
+            </TextAnimation>
           </h1>
 
           <p className="text-lg sm:text-xl text-gray-300 max-w-2xl mx-auto font-normal leading-relaxed">
-            Take total control of your personal finances. Track daily expenses, forecast savings effortlessly, and receive real-time intelligent budget alerts.
+            <TextAnimation divideBy="word" delay={0.25}>
+              Take total control of your personal finances. Track daily expenses, forecast savings effortlessly, and receive real-time intelligent budget alerts.
+            </TextAnimation>
           </p>
 
           {/* Action CTAs */}
@@ -99,13 +104,9 @@ export default function Hero({ activeTheme = 'violet' }) {
 
         {/* Hero Interactive Preview Card Section */}
         <div className="mt-16 relative">
-          {/* Ambient Background Glow behind Preview */}
           <div className={`absolute -inset-1 rounded-3xl bg-gradient-to-r ${currentTheme.glowClass} blur-2xl opacity-80 animate-pulse-glow`} />
 
-          {/* Glass Card Dashboard Window */}
           <div className="relative rounded-3xl border border-white/15 bg-gradient-to-b from-white/10 to-black/70 p-6 md:p-8 backdrop-blur-2xl shadow-2xl">
-            
-            {/* Top Bar Window Controls */}
             <div className="flex items-center justify-between pb-6 border-b border-white/10 mb-6">
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-red-500/80" />
@@ -121,12 +122,10 @@ export default function Hero({ activeTheme = 'violet' }) {
               </div>
             </div>
 
-            {/* Dashboard Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
               {/* Column 1: Financial Summary Cards */}
               <div className="space-y-4">
-                {/* Total Balance Card */}
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-md">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-gray-400">Total Net Worth</span>
@@ -140,7 +139,6 @@ export default function Hero({ activeTheme = 'violet' }) {
                   <p className="mt-1 text-xs text-gray-400">+₹2,410.00 from last month</p>
                 </div>
 
-                {/* Monthly Income vs Expense Stats */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl border border-white/10 bg-emerald-500/5 p-4">
                     <div className="flex items-center gap-2 text-emerald-400 text-xs font-medium">
@@ -157,7 +155,6 @@ export default function Hero({ activeTheme = 'violet' }) {
                   </div>
                 </div>
 
-                {/* Budget Health Meter */}
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
                   <div className="flex justify-between items-center text-xs font-medium mb-2">
                     <span className="text-gray-300">Monthly Budget Goal</span>
@@ -217,7 +214,6 @@ export default function Hero({ activeTheme = 'violet' }) {
                   </div>
                 </div>
 
-                {/* Calculation Output Box */}
                 <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4 text-center">
                   <span className="text-xs text-gray-300 font-medium">Projected 1-Year Wealth Build</span>
                   <div className="text-2xl font-black text-white mt-1">
@@ -291,7 +287,6 @@ export default function Hero({ activeTheme = 'violet' }) {
           </div>
         </div>
 
-        {/* Social Proof & Metrics Footer */}
         <div className="mt-20 border-t border-white/10 pt-10 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           <div>
             <div className="text-3xl font-extrabold text-white tracking-tight">₹120Cr+</div>

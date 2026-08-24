@@ -13,13 +13,19 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
+export interface AuthModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  initialMode?: 'login' | 'signup';
+}
+
+export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) {
   const { login, signup } = useAuth();
-  const [isSignUp, setIsSignUp] = useState(initialMode === 'signup');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [isSignUp, setIsSignUp] = useState<boolean>(initialMode === 'signup');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSuccess, setIsSuccess] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string>('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -37,7 +43,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
 
   // Handle ESC key to close modal
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         onClose();
       }
@@ -60,7 +66,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
 
   if (!isOpen) return null;
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -69,7 +75,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
     if (errorMsg) setErrorMsg('');
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -92,12 +98,11 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
         setIsSuccess(false);
         onClose();
       }, 1000);
-    } catch (err) {
+    } catch (err: any) {
       setIsLoading(false);
       setErrorMsg(err.message || 'Authentication failed. Please check credentials or backend server.');
     }
   };
-
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">

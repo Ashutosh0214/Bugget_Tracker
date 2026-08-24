@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 
-/**
- * Elegant Dark Pattern Component
- * Source: https://21st.dev/@jatin-yadav05/components/elegant-dark-pattern
- * By @jatin-yadav05 (Jatin Yadav)
- * Sophisticated gradients meet subtle textures for modern interfaces.
- */
+export type ThemePresetKey = 'violet' | 'emerald' | 'cyan' | 'amber' | 'rose' | 'obsidian';
 
-export const THEME_PRESETS = {
+export interface ThemePreset {
+  radial: string;
+  glowClass: string;
+  accentText: string;
+  accentBtn: string;
+  badgeBorder: string;
+}
+
+export const THEME_PRESETS: Record<ThemePresetKey, ThemePreset> = {
   violet: {
     radial: 'radial-gradient(ellipse 80% 80% at 50% -20%, rgba(120,119,198,0.25), rgba(255,255,255,0))',
     glowClass: 'from-purple-600/25 via-indigo-600/15 to-transparent',
@@ -52,7 +55,13 @@ export const THEME_PRESETS = {
   }
 };
 
-export function DarkGradientBg({ children, className = '', activeTheme = 'violet' }) {
+export interface DarkGradientBgProps {
+  children?: ReactNode;
+  className?: string;
+  activeTheme?: ThemePresetKey;
+}
+
+export function DarkGradientBg({ children, className = '', activeTheme = 'violet' }: DarkGradientBgProps) {
   const currentTheme = THEME_PRESETS[activeTheme] || THEME_PRESETS.violet;
 
   return (
@@ -79,10 +88,7 @@ export function DarkGradientBg({ children, className = '', activeTheme = 'violet
   );
 }
 
-/**
- * Background Layer Component for section-level backgrounds
- */
-export default function BackgroundElegantDarkPattern({ activeTheme = 'violet' }) {
+export default function BackgroundElegantDarkPattern({ activeTheme = 'violet' }: { activeTheme?: ThemePresetKey }) {
   const currentTheme = THEME_PRESETS[activeTheme] || THEME_PRESETS.violet;
 
   return (

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './sideBar';
 import CustomSelect from './ui/CustomSelect';
+import TextAnimation from '@/components/ui/staggerText';
 import { useAuth } from '../context/AuthContext';
-import { transactionApi } from '../lib/api';
+import { transactionApi, TransactionData } from '../lib/api';
 
 import { 
   Search, 
@@ -10,26 +11,31 @@ import {
   Plus, 
   ArrowUpRight, 
   ArrowDownRight, 
-  TrendingUp, 
-  DollarSign, 
   Wallet, 
   PiggyBank, 
   Sparkles, 
   Send, 
-  Filter, 
-  Download, 
   Check, 
   AlertTriangle,
   Bot,
-  User,
-  ShieldCheck,
-  Calendar,
-  Layers,
-  ArrowRight
+  ArrowRight,
+  TrendingUp,
+  DollarSign
 } from 'lucide-react';
 
+export interface DashboardLayoutProps {
+  mode?: 'light' | 'dark';
+  onToggleMode?: () => void;
+  onExitDashboard?: () => void;
+}
+
+export interface ChatMessage {
+  sender: 'ai' | 'user';
+  text: string;
+}
+
 // Sample mock data for guest transactions fallback
-const INITIAL_TRANSACTIONS = [
+const INITIAL_TRANSACTIONS: TransactionData[] = [
   { id: 1, name: 'Apple Store Purchase', category: 'Technology', amount: -999.00, date: '2026-08-12', status: 'Completed', icon: '💻' },
   { id: 2, name: 'Monthly Salary Deposit', category: 'Income', amount: 6500.00, date: '2026-08-01', status: 'Completed', icon: '💼' },
   { id: 3, name: 'Whole Foods Market', category: 'Groceries', amount: -142.30, date: '2026-08-10', status: 'Completed', icon: '🛒' },
@@ -38,24 +44,24 @@ const INITIAL_TRANSACTIONS = [
   { id: 6, name: 'Uber Ride', category: 'Transport', amount: -34.50, date: '2026-08-09', status: 'Completed', icon: '🚗' },
 ];
 
-export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDashboard }) {
+export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDashboard }: DashboardLayoutProps) {
   const { user, isAuthenticated } = useAuth();
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All');
-  const [currency, setCurrency] = useState('USD');
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const [transactions, setTransactions] = useState<TransactionData[]>(INITIAL_TRANSACTIONS);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('All');
+  const [currency, setCurrency] = useState<string>('USD');
   
   // New Transaction Form State
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [newTx, setNewTx] = useState({ name: '', amount: '', category: 'Groceries', type: 'expense' });
 
   // AI Assistant Chat State
-  const [chatMessages, setChatMessages] = useState([
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     { sender: 'ai', text: `Hello ${user ? user.name : 'Alex'}! I am your Spendzy AI Assistant. How can I help you optimize your spending today?` }
   ]);
-  const [chatInput, setChatInput] = useState('');
+  const [chatInput, setChatInput] = useState<string>('');
 
   // Fetch transactions from backend server when authenticated
   useEffect(() => {
@@ -67,20 +73,20 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
             setTransactions(res.transactions);
           }
         })
-        .catch((err) => {
+        .catch((err: any) => {
           console.warn('Failed to load server transactions, using cached state:', err.message);
         });
     }
   }, [isAuthenticated]);
 
-  const handleAddTransaction = async (e) => {
+  const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTx.name || !newTx.amount) return;
 
     const numAmount = parseFloat(newTx.amount);
     const finalAmount = newTx.type === 'expense' ? -Math.abs(numAmount) : Math.abs(numAmount);
 
-    const createdData = {
+    const createdData: TransactionData = {
       name: newTx.name,
       category: newTx.category,
       amount: finalAmount,
@@ -109,11 +115,11 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
     setShowAddModal(false);
   };
 
-  const handleSendChatMessage = (e) => {
+  const handleSendChatMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
 
-    const userMsg = { sender: 'user', text: chatInput };
+    const userMsg: ChatMessage = { sender: 'user', text: chatInput };
     setChatMessages((prev) => [...prev, userMsg]);
     const query = chatInput;
     setChatInput('');
@@ -200,10 +206,14 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                     Financial Overview
                   </span>
                   <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                    Welcome back, Alex! 👋
+                    <TextAnimation divideBy="word" delay={0.1}>
+                      {`Welcome back, ${user ? user.name : 'Alex'}! 👋`}
+                    </TextAnimation>
                   </h1>
                   <p className="text-xs sm:text-sm text-violet-100/90">
-                    Here is your real-time financial status & AI smart suggestions.
+                    <TextAnimation divideBy="word" delay={0.25}>
+                      Here is your real-time financial status & AI smart suggestions.
+                    </TextAnimation>
                   </p>
                 </div>
                 <button 
@@ -314,13 +324,11 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                     ].map((item, idx) => (
                       <div key={idx} className="flex-1 flex flex-col items-center gap-2 group">
                         <div className="w-full flex justify-center items-end gap-1.5 h-44">
-                          {/* Income Bar */}
                           <div 
                             style={{ height: `${item.income}%` }}
                             className="w-1/2 max-w-[20px] bg-violet-600 rounded-t-md group-hover:bg-violet-500 transition-all shadow-sm"
                             title={`Income: ${item.income}%`}
                           />
-                          {/* Expense Bar */}
                           <div 
                             style={{ height: `${item.expense}%` }}
                             className="w-1/2 max-w-[20px] bg-rose-500/80 rounded-t-md group-hover:bg-rose-500 transition-all shadow-sm"
@@ -415,8 +423,8 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60 text-xs font-medium">
-                      {transactions.slice(0, 5).map((tx) => (
-                        <tr key={tx.id} className="hover:bg-muted/50 transition-colors">
+                      {transactions.slice(0, 5).map((tx, idx) => (
+                        <tr key={tx.id || idx} className="hover:bg-muted/50 transition-colors">
                           <td className="py-3 px-4 flex items-center gap-3">
                             <span className="text-base">{tx.icon}</span>
                             <span className="font-semibold text-foreground">{tx.name}</span>
@@ -509,8 +517,8 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                           (categoryFilter === 'All' || t.category === categoryFilter) &&
                           (t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.category.toLowerCase().includes(searchTerm.toLowerCase()))
                         )
-                        .map((tx) => (
-                          <tr key={tx.id} className="hover:bg-muted/50 transition-colors">
+                        .map((tx, idx) => (
+                          <tr key={tx.id || idx} className="hover:bg-muted/50 transition-colors">
                             <td className="py-3.5 px-4 flex items-center gap-3">
                               <span className="text-lg">{tx.icon}</span>
                               <span className="font-semibold text-foreground">{tx.name}</span>
@@ -803,12 +811,11 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
         </main>
       </div>
 
-      {/* Add Transaction Modal */}
+      {/* Add Expense Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-          <div className="relative w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4 z-10 text-foreground">
-            <h3 className="text-lg font-bold text-foreground">Add New Transaction</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md p-6 rounded-3xl border border-border bg-card shadow-2xl space-y-4">
+            <h2 className="text-lg font-bold text-foreground">Add New Transaction</h2>
             
             <form onSubmit={handleAddTransaction} className="space-y-3">
               <div>
@@ -818,64 +825,58 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                   required
                   value={newTx.name}
                   onChange={(e) => setNewTx({ ...newTx, name: e.target.value })}
-                  placeholder="e.g. Grocery Store"
-                  className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs text-foreground focus:outline-none focus:border-violet-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground block mb-1">Amount ($)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={newTx.amount}
-                  onChange={(e) => setNewTx({ ...newTx, amount: e.target.value })}
-                  placeholder="0.00"
-                  className="w-full rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs text-foreground focus:outline-none focus:border-violet-500"
+                  placeholder="e.g. Grocery Shopping"
+                  className="w-full rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs text-foreground focus:outline-none focus:border-violet-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Type</label>
-                  <CustomSelect
-                    value={newTx.type}
-                    onChange={(val) => setNewTx({ ...newTx, type: val })}
-                    options={[
-                      { value: 'expense', label: 'Expense', icon: '💸' },
-                      { value: 'income', label: 'Income', icon: '💰' },
-                    ]}
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Amount ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={newTx.amount}
+                    onChange={(e) => setNewTx({ ...newTx, amount: e.target.value })}
+                    placeholder="99.99"
+                    className="w-full rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs text-foreground focus:outline-none focus:border-violet-500"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Category</label>
-                  <CustomSelect
-                    value={newTx.category}
-                    onChange={(val) => setNewTx({ ...newTx, category: val })}
-                    options={[
-                      { value: 'Groceries', label: 'Groceries', icon: '🛒' },
-                      { value: 'Technology', label: 'Technology', icon: '💻' },
-                      { value: 'Entertainment', label: 'Entertainment', icon: '🎬' },
-                      { value: 'Transport', label: 'Transport', icon: '🚗' },
-                      { value: 'Income', label: 'Income', icon: '💰' },
-                    ]}
-                  />
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Type</label>
+                  <select
+                    value={newTx.type}
+                    onChange={(e) => setNewTx({ ...newTx, type: e.target.value })}
+                    className="w-full rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs text-foreground focus:outline-none focus:border-violet-500"
+                  >
+                    <option value="expense">Expense (-)</option>
+                    <option value="income">Income (+)</option>
+                  </select>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground block mb-1">Category</label>
+                <CustomSelect
+                  value={newTx.category}
+                  onChange={(val) => setNewTx({ ...newTx, category: val })}
+                  options={['Groceries', 'Technology', 'Entertainment', 'Transport', 'Income']}
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:bg-muted"
+                  className="flex-1 py-2.5 rounded-xl border border-border bg-muted text-xs font-semibold text-foreground hover:bg-muted/80 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-semibold shadow-md hover:bg-violet-700"
+                  className="flex-1 py-2.5 rounded-xl bg-violet-600 text-white text-xs font-bold shadow-md shadow-violet-600/30 hover:bg-violet-700 transition-colors"
                 >
                   Save Transaction
                 </button>
@@ -884,7 +885,6 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -1,20 +1,34 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 
+export interface SelectOption {
+  value: string;
+  label: string;
+  icon?: React.ReactNode;
+}
+
+export interface CustomSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  options?: (SelectOption | string)[];
+  placeholder?: string;
+  className?: string;
+}
+
 export default function CustomSelect({ 
   value, 
   onChange, 
   options = [], 
   placeholder = 'Select option...', 
   className = '' 
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef(null);
+}: CustomSelectProps) {
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Close dropdown on click outside
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -23,7 +37,7 @@ export default function CustomSelect({
   }, []);
 
   // Format options if passed as simple strings
-  const formattedOptions = options.map((opt) => 
+  const formattedOptions: SelectOption[] = options.map((opt) => 
     typeof opt === 'string' 
       ? { value: opt, label: opt } 
       : opt
@@ -31,7 +45,7 @@ export default function CustomSelect({
 
   const selectedOption = formattedOptions.find((opt) => opt.value === value) || formattedOptions[0];
 
-  const handleSelect = (optValue) => {
+  const handleSelect = (optValue: string) => {
     onChange(optValue);
     setIsOpen(false);
   };

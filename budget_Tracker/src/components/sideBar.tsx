@@ -7,17 +7,24 @@ import {
   Sparkles, 
   Wand2, 
   MessageSquare, 
-  Settings, 
   Wallet,
   ChevronLeft,
   ChevronRight,
   Sun,
   Moon,
   LogOut,
-  User
+  LucideIcon
 } from 'lucide-react';
 
-export const MENU_ITEMS = [
+export interface MenuItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  emoji: string;
+  badge?: string;
+}
+
+export const MENU_ITEMS: MenuItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, emoji: '📊' },
   { id: 'transactions', label: 'Transactions', icon: CreditCard, emoji: '💳' },
   { id: 'budgets', label: 'Budgets', icon: Target, emoji: '🎯' },
@@ -27,6 +34,16 @@ export const MENU_ITEMS = [
   { id: 'ai-assistant', label: 'AI Assistant', icon: MessageSquare, emoji: '💬', badge: 'New' },
 ];
 
+export interface SidebarProps {
+  activeTab?: string;
+  onSelectTab?: (tab: string) => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+  mode?: 'light' | 'dark';
+  onToggleMode?: () => void;
+  onExitDashboard?: () => void;
+}
+
 export default function Sidebar({ 
   activeTab = 'dashboard', 
   onSelectTab, 
@@ -35,7 +52,7 @@ export default function Sidebar({
   mode = 'light',
   onToggleMode,
   onExitDashboard
-}) {
+}: SidebarProps) {
   return (
     <aside 
       className={`relative flex flex-col h-screen bg-card border-r border-border transition-all duration-300 z-30 select-none ${
@@ -80,7 +97,6 @@ export default function Sidebar({
       {/* Navigation List */}
       <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
         {MENU_ITEMS.map((item) => {
-          const Icon = item.icon;
           const isActive = activeTab === item.id;
 
           return (
