@@ -92,7 +92,7 @@ export default function Navbar({
 
   return (
     <header className="sticky top-0 z-50 w-full px-3 sm:px-6 pt-3 pb-1 bg-transparent">
-      <div className="mx-auto max-w-7xl flex items-center justify-between px-6 py-3 rounded-2xl bg-white/35 dark:bg-zinc-900/35 border border-white/40 dark:border-white/10 shadow-md shadow-slate-900/[0.025] dark:shadow-black/25 backdrop-blur-xl backdrop-saturate-150 transition-all duration-300">
+      <div className="mx-auto max-w-7xl flex items-center justify-between px-6 py-3 rounded-2xl bg-white/40 dark:bg-zinc-900/40 border border-white/40 dark:border-white/10 shadow-md shadow-slate-900/[0.025] dark:shadow-black/25 backdrop-blur-xl backdrop-saturate-150 transition-all duration-300">
         
         {/* Left Side: Brand Logo */}
         <a 
@@ -103,7 +103,7 @@ export default function Navbar({
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-violet-500/25 transition-transform duration-300 group-hover:scale-105">
             <Wallet className="h-5 w-5 fill-white/20 text-white" />
           </div>
-          <span className="text-xl font-extrabold tracking-tight text-black dark:text-white">
+          <span className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white transition-colors duration-200">
             Spendze
           </span>
         </a>
@@ -119,14 +119,14 @@ export default function Navbar({
                 onClick={(e) => handleNavClick(e, link.href)}
                 className={`relative py-1 text-sm transition-colors duration-200 cursor-pointer ${
                   isActive
-                    ? 'text-violet-600 font-bold'
-                    : 'text-black hover:text-violet-600 font-semibold'
+                    ? 'text-violet-600 dark:text-violet-400 font-bold'
+                    : 'text-slate-900 dark:text-zinc-100 hover:text-violet-600 dark:hover:text-violet-400 font-semibold'
                 }`}
               >
                 <span>{link.name}</span>
                 {/* Purple horizontal accent indicator bar right under the text */}
                 {isActive && (
-                  <span className="absolute -bottom-1 left-0 right-0 h-[2.5px] bg-violet-600 rounded-full animate-in fade-in zoom-in-75 duration-200" />
+                  <span className="absolute -bottom-1 left-0 right-0 h-[2.5px] bg-violet-600 dark:bg-violet-400 rounded-full animate-in fade-in zoom-in-75 duration-200" />
                 )}
               </a>
             );
@@ -139,7 +139,7 @@ export default function Navbar({
           {/* Light / Dark Mode Toggle Button */}
           <button
             onClick={onToggleMode}
-            className="p-2 rounded-xl text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             title={`Switch to ${mode === 'dark' ? 'Light' : 'Dark'} Mode`}
           >
             {mode === 'dark' ? (
@@ -149,11 +149,11 @@ export default function Navbar({
             )}
           </button>
 
-          {/* Solid Vibrant Purple CTA Button */}
+          {/* Adaptive Theme CTA Button (Black in Light Mode, White in Dark Mode) */}
           <button
             type="button"
             onClick={() => onOpenAuth && onOpenAuth('signup')}
-            className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-violet-600/25 transition-all duration-300 hover:shadow-lg hover:shadow-violet-600/40 hover:scale-[1.03] active:scale-95 cursor-pointer"
+            className="group inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-5 py-2 text-sm font-semibold shadow-md transition-all duration-300 hover:bg-slate-800 dark:hover:bg-slate-100 hover:scale-[1.03] active:scale-95 cursor-pointer"
           >
             <span>Get Started</span>
             <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -164,7 +164,7 @@ export default function Navbar({
         <div className="flex lg:hidden items-center gap-2">
           <button
             onClick={onToggleMode}
-            className="p-2 rounded-xl text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800"
+            className="p-2 rounded-xl text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800"
             aria-label="Toggle theme"
           >
             {mode === 'dark' ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-indigo-600" />}
@@ -172,7 +172,7 @@ export default function Navbar({
 
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-xl text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800"
+            className="p-2 rounded-xl text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-zinc-800"
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -182,7 +182,7 @@ export default function Navbar({
 
       {/* Mobile Dropdown Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden mx-auto max-w-7xl mt-2 rounded-2xl border border-white/40 dark:border-white/10 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-xl p-5 space-y-2 shadow-lg shadow-black/25 animate-in slide-in-from-top-2 duration-200">
+        <div className="lg:hidden mx-auto max-w-7xl mt-2 rounded-2xl border border-white/40 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-5 space-y-2 shadow-lg shadow-black/25 animate-in slide-in-from-top-2 duration-200">
           {NAV_LINKS.map((link) => {
             const isActive = (activeLinkOverride || activeLink) === link.href;
             return (
@@ -192,8 +192,8 @@ export default function Navbar({
                 onClick={(e) => handleNavClick(e, link.href)}
                 className={`group flex items-center justify-between rounded-xl px-4 py-2.5 text-base font-semibold transition-all duration-200 cursor-pointer ${
                   isActive
-                    ? 'bg-violet-500/10 text-violet-600 font-bold'
-                    : 'text-black hover:bg-slate-100 hover:text-violet-600'
+                    ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400 font-bold'
+                    : 'text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 hover:text-violet-600 dark:hover:text-violet-400'
                 }`}
               >
                 <span>{link.name}</span>
@@ -209,7 +209,7 @@ export default function Navbar({
                 setMobileMenuOpen(false);
                 if (onOpenAuth) onOpenAuth('signup');
               }}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-violet-600/30"
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-2.5 text-sm font-semibold shadow-md"
             >
               <span>Get Started</span>
               <ArrowRight className="h-4 w-4" />

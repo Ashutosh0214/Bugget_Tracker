@@ -50,9 +50,9 @@ export function FeaturesSection() {
   ];
 
   return (
-    <section id="features" className="scroll-mt-20 py-24 px-6 border-t border-border bg-muted/20">
-      <div className="max-w-7xl mx-auto space-y-16">
-        <div className="text-center space-y-4 max-w-3xl mx-auto">
+    <section id="features" className="scroll-mt-20 py-12 px-6 border-t border-border bg-muted/20">
+      <div className="max-w-7xl mx-auto space-y-10">
+        <div className="text-center space-y-3 max-w-3xl mx-auto">
           <span className="inline-block text-xs font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-widest bg-violet-500/10 px-3.5 py-1.5 rounded-full border border-violet-500/20">
             <TextAnimation divideBy="word" delay={0.1}>
               Platform Features
@@ -120,9 +120,9 @@ export function HowItWorksSection() {
   ];
 
   return (
-    <section id="how-it-works" className="scroll-mt-20 py-24 px-6 border-t border-border bg-background">
-      <div className="max-w-7xl mx-auto space-y-16">
-        <div className="text-center space-y-4 max-w-3xl mx-auto">
+    <section id="how-it-works" className="scroll-mt-20 py-12 px-6 border-t border-border bg-background">
+      <div className="max-w-7xl mx-auto space-y-10">
+        <div className="text-center space-y-3 max-w-3xl mx-auto">
           <span className="inline-block text-xs font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-widest bg-violet-500/10 px-3.5 py-1.5 rounded-full border border-violet-500/20">
             <TextAnimation divideBy="word" delay={0.1}>
               How It Works
@@ -212,9 +212,9 @@ export function PricingSection({ onOpenAuth }: PricingSectionProps) {
   ];
 
   return (
-    <section id="pricing" className="scroll-mt-20 py-24 px-6 border-t border-border bg-muted/20">
-      <div className="max-w-7xl mx-auto space-y-16">
-        <div className="text-center space-y-4 max-w-3xl mx-auto">
+    <section id="pricing" className="scroll-mt-20 py-8 px-6 bg-transparent">
+      <div className="max-w-7xl mx-auto space-y-10">
+        <div className="text-center space-y-3 max-w-3xl mx-auto">
           <span className="inline-block text-xs font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-widest bg-violet-500/10 px-3.5 py-1.5 rounded-full border border-violet-500/20">
             <TextAnimation divideBy="word" delay={0.1}>
               Transparent Pricing
@@ -232,7 +232,7 @@ export function PricingSection({ onOpenAuth }: PricingSectionProps) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch pt-2">
           {plans.map((p, idx) => (
             <div 
               key={idx} 
@@ -316,7 +316,7 @@ export function FaqSection() {
     },
     {
       question: 'Can Spendze help me identify unnecessary spending?',
-      answer: 'Abolutely. Spendze flags unutilized streaming subscriptions, duplicate bills, and high-frequency lifestyle spending, giving you actionable suggestions to cut waste and boost your monthly savings.'
+      answer: 'Absolutely. Spendze flags unutilized streaming subscriptions, duplicate bills, and high-frequency lifestyle spending, giving you actionable suggestions to cut waste and boost your monthly savings.'
     },
     {
       question: 'How can I view my spending trends?',
@@ -341,11 +341,11 @@ export function FaqSection() {
   };
 
   return (
-    <section id="faq" className="scroll-mt-20 py-24 px-6 border-t border-border bg-background">
-      <div className="max-w-6xl mx-auto space-y-16">
+    <section id="faq" className="scroll-mt-20 py-12 px-6 border-t border-border bg-background">
+      <div className="max-w-6xl mx-auto space-y-10">
         
         {/* Section Header */}
-        <div className="text-center space-y-4 max-w-3xl mx-auto">
+        <div className="text-center space-y-3 max-w-3xl mx-auto">
           <span className="inline-block text-xs font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-widest bg-violet-500/10 px-3.5 py-1.5 rounded-full border border-violet-500/20">
             <TextAnimation divideBy="word" delay={0.1}>
               Frequently Asked Questions
