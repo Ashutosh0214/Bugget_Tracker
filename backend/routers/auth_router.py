@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from database import get_db
+import sqlite3
+
+from database import db_connection
 from schemas import UserSignup, UserLogin, AuthResponse, UserProfileResponse, UserOut
 from auth import hash_password, verify_password, generate_token, get_current_user
 
@@ -7,36 +9,23 @@ router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED, response_model=AuthResponse)
 def signup(data: UserSignup):
-    if not data.name.strip() or not data.email.strip() or not data.password.strip():
+    email_clean = str(data.email).lower()
+    hashed_pw = hash_password(data.password)
+    try:
+        with db_connection() as conn:
+            cursor = conn.execute(
+                "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
+                (data.name, email_clean, hashed_pw)
+            )
+            user_id = cursor.lastrowid
+    except sqlite3.IntegrityError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"message": "Please enter all fields"}
-        )
-    
-    email_clean = data.email.strip().lower()
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT * FROM users WHERE email = ?", (email_clean,))
-    existing_user = cursor.fetchone()
-    if existing_user:
-        conn.close()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_409_CONFLICT,
             detail={"message": "User already exists with this email"}
         )
     
-    hashed_pw = hash_password(data.password)
-    cursor.execute(
-        "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
-        (data.name.strip(), email_clean, hashed_pw)
-    )
-    conn.commit()
-    user_id = cursor.lastrowid
-    conn.close()
-    
-    user_data = UserOut(id=user_id, name=data.name.strip(), email=email_clean)
-    token = generate_token(user_id, email_clean, data.name.strip())
+    user_data = UserOut(id=user_id, name=data.name, email=email_clean)
+    token = generate_token(user_id, email_clean, data.name)
     
     return {
         "user": user_data,
@@ -46,19 +35,9 @@ def signup(data: UserSignup):
 
 @router.post("/login", response_model=AuthResponse)
 def login(data: UserLogin):
-    if not data.email.strip() or not data.password.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"message": "Please enter email and password"}
-        )
-    
-    email_clean = data.email.strip().lower()
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT * FROM users WHERE email = ?", (email_clean,))
-    user = cursor.fetchone()
-    conn.close()
+    email_clean = str(data.email).lower()
+    with db_connection() as conn:
+        user = conn.execute("SELECT * FROM users WHERE email = ?", (email_clean,)).fetchone()
     
     if not user or not verify_password(data.password, user["password"]):
         raise HTTPException(
@@ -83,12 +62,10 @@ def login(data: UserLogin):
 @router.get("/me", response_model=UserProfileResponse)
 def get_me(current_user: dict = Depends(get_current_user)):
     user_id = current_user.get("id")
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT id, name, email, created_at FROM users WHERE id = ?", (user_id,))
-    user = cursor.fetchone()
-    conn.close()
+    with db_connection() as conn:
+        user = conn.execute(
+            "SELECT id, name, email, created_at FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
     
     if not user:
         raise HTTPException(

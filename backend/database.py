@@ -1,19 +1,34 @@
 import sqlite3
-from pathlib import Path
+from contextlib import contextmanager
+from collections.abc import Iterator
 
-DB_PATH = Path(__file__).resolve().parent / "spendzy.db"
+from config import get_settings
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(get_settings().database_path, timeout=10)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 10000")
     return conn
 
-def init_db():
+
+@contextmanager
+def db_connection() -> Iterator[sqlite3.Connection]:
     conn = get_db()
-    cursor = conn.cursor()
-    
-    # Users table
-    cursor.execute("""
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+def init_db():
+    with db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA journal_mode = WAL")
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -21,10 +36,8 @@ def init_db():
             password TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
-    """)
-    
-    # Transactions table
-    cursor.execute("""
+        """)
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -37,10 +50,8 @@ def init_db():
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
-    """)
-    
-    # Budgets table
-    cursor.execute("""
+        """)
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS budgets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -51,8 +62,12 @@ def init_db():
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
-    """)
-    
-    conn.commit()
-    conn.close()
-    print("SQLite database schema initialized successfully at:", DB_PATH)
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_transactions_user_date "
+            "ON transactions(user_id, date DESC, id DESC)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_budgets_user_category_month "
+            "ON budgets(user_id, category, month)"
+        )

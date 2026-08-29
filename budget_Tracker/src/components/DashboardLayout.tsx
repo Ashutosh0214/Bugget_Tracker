@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Sidebar from './sideBar';
 import CustomSelect from './ui/CustomSelect';
 import TextAnimation from '@/components/ui/staggerText';
@@ -34,6 +34,24 @@ export interface ChatMessage {
   text: string;
 }
 
+type CurrencyCode = 'INR' | 'USD' | 'EUR' | 'GBP';
+
+const CURRENCY_STORAGE_KEY = 'spendzy_currency';
+const SUPPORTED_CURRENCIES: CurrencyCode[] = ['INR', 'USD', 'EUR', 'GBP'];
+const CURRENCY_LOCALES: Record<CurrencyCode, string> = {
+  INR: 'en-IN',
+  USD: 'en-US',
+  EUR: 'de-DE',
+  GBP: 'en-GB',
+};
+
+const getInitialCurrency = (): CurrencyCode => {
+  const savedCurrency = localStorage.getItem(CURRENCY_STORAGE_KEY);
+  return SUPPORTED_CURRENCIES.includes(savedCurrency as CurrencyCode)
+    ? (savedCurrency as CurrencyCode)
+    : 'INR';
+};
+
 // Sample mock data for guest transactions fallback
 const INITIAL_TRANSACTIONS: TransactionData[] = [
   { id: 1, name: 'Apple Store Purchase', category: 'Technology', amount: -999.00, date: '2026-08-12', status: 'Completed', icon: '💻' },
@@ -51,7 +69,19 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
   const [transactions, setTransactions] = useState<TransactionData[]>(INITIAL_TRANSACTIONS);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
-  const [currency, setCurrency] = useState<string>('USD');
+  const [currency, setCurrency] = useState<CurrencyCode>(getInitialCurrency);
+  const currencyFormatter = useMemo(
+    () => new Intl.NumberFormat(CURRENCY_LOCALES[currency], {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }),
+    [currency],
+  );
+  const formatCurrency = (amount: number) => currencyFormatter.format(amount);
+  const formatSignedCurrency = (amount: number) =>
+    `${amount > 0 ? '+' : '-'}${formatCurrency(Math.abs(amount))}`;
   
   // New Transaction Form State
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -78,6 +108,10 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
         });
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    localStorage.setItem(CURRENCY_STORAGE_KEY, currency);
+  }, [currency]);
 
   const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,11 +160,11 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
 
     // Simulate AI response
     setTimeout(() => {
-      let aiText = "I've analyzed your financial data. You are currently saving 54.8% of your monthly income! Consider allocating $300 towards your High-Yield Savings Account.";
+      let aiText = `I've analyzed your financial data. You are currently saving 54.8% of your monthly income! Consider allocating ${formatCurrency(300)} towards your High-Yield Savings Account.`;
       if (query.toLowerCase().includes('dining') || query.toLowerCase().includes('food')) {
-        aiText = "You've spent $420 on food & groceries this month, which is 12% lower than last month. Great job!";
+        aiText = `You've spent ${formatCurrency(420)} on food & groceries this month, which is 12% lower than last month. Great job!`;
       } else if (query.toLowerCase().includes('subscription') || query.toLowerCase().includes('netflix')) {
-        aiText = "I detected 3 active subscriptions totaling $58/mo. You haven't used Spotify Premium in 3 weeks!";
+        aiText = `I detected 3 active subscriptions totaling ${formatCurrency(58)}/mo. You haven't used Spotify Premium in 3 weeks!`;
       }
       setChatMessages((prev) => [...prev, { sender: 'ai', text: aiText }]);
     }, 800);
@@ -237,7 +271,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-foreground tracking-tight">$48,250.00</h3>
+                    <h3 className="text-2xl font-bold text-foreground tracking-tight">{formatCurrency(48250)}</h3>
                     <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-500 mt-1">
                       <ArrowUpRight className="h-3.5 w-3.5" />
                       <span>+12.4% from last month</span>
@@ -254,7 +288,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-foreground tracking-tight">$3,840.50</h3>
+                    <h3 className="text-2xl font-bold text-foreground tracking-tight">{formatCurrency(3840.5)}</h3>
                     <div className="flex items-center gap-1.5 text-xs font-medium text-rose-500 mt-1">
                       <ArrowUpRight className="h-3.5 w-3.5" />
                       <span>4% under monthly budget</span>
@@ -271,10 +305,10 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-foreground tracking-tight">$8,500.00</h3>
+                    <h3 className="text-2xl font-bold text-foreground tracking-tight">{formatCurrency(8500)}</h3>
                     <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-500 mt-1">
                       <ArrowUpRight className="h-3.5 w-3.5" />
-                      <span>+$1,200 freelance inflow</span>
+                      <span>+{formatCurrency(1200)} freelance inflow</span>
                     </div>
                   </div>
                 </div>
@@ -343,11 +377,11 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                   <div className="flex items-center justify-center gap-6 pt-2 border-t border-border/60 text-xs font-medium">
                     <div className="flex items-center gap-2">
                       <span className="h-3 w-3 rounded-full bg-violet-600" />
-                      <span>Income ($8,500)</span>
+                      <span>Income ({formatCurrency(8500)})</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="h-3 w-3 rounded-full bg-rose-500" />
-                      <span>Expenses ($3,840)</span>
+                      <span>Expenses ({formatCurrency(3840)})</span>
                     </div>
                   </div>
                 </div>
@@ -369,7 +403,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                           <AlertTriangle className="h-4 w-4" />
                         </div>
                         <p className="text-muted-foreground leading-relaxed">
-                          You’ve reached 88% of your monthly entertainment budget. $24 remaining for August.
+                          You’ve reached 88% of your monthly entertainment budget. {formatCurrency(24)} remaining for August.
                         </p>
                       </div>
 
@@ -379,7 +413,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                           <Check className="h-4 w-4" />
                         </div>
                         <p className="text-muted-foreground leading-relaxed">
-                          Auto-transfer $450 to High-Yield Savings to earn 4.8% APY.
+                          Auto-transfer {formatCurrency(450)} to High-Yield Savings to earn 4.8% APY.
                         </p>
                       </div>
                     </div>
@@ -443,7 +477,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                           <td className={`py-3 px-4 text-right font-bold ${
                             tx.amount > 0 ? 'text-emerald-500' : 'text-foreground'
                           }`}>
-                            {tx.amount > 0 ? `+$${tx.amount.toFixed(2)}` : `-$${Math.abs(tx.amount).toFixed(2)}`}
+                            {formatSignedCurrency(tx.amount)}
                           </td>
                         </tr>
                       ))}
@@ -537,7 +571,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                             <td className={`py-3.5 px-4 text-right font-bold ${
                               tx.amount > 0 ? 'text-emerald-500' : 'text-foreground'
                             }`}>
-                              {tx.amount > 0 ? `+$${tx.amount.toFixed(2)}` : `-$${Math.abs(tx.amount).toFixed(2)}`}
+                              {formatSignedCurrency(tx.amount)}
                             </td>
                           </tr>
                         ))}
@@ -571,7 +605,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                           <span className="text-2xl">{b.icon}</span>
                           <div>
                             <h3 className="text-base font-bold text-foreground">{b.category}</h3>
-                            <span className="text-xs text-muted-foreground">${b.limit - b.spent} remaining</span>
+                            <span className="text-xs text-muted-foreground">{formatCurrency(b.limit - b.spent)} remaining</span>
                           </div>
                         </div>
                         <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-muted border border-border">
@@ -584,8 +618,8 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                       </div>
 
                       <div className="flex justify-between items-center text-xs font-semibold">
-                        <span className="text-foreground">${b.spent.toLocaleString()} spent</span>
-                        <span className="text-muted-foreground">${b.limit.toLocaleString()} limit</span>
+                        <span className="text-foreground">{formatCurrency(b.spent)} spent</span>
+                        <span className="text-muted-foreground">{formatCurrency(b.limit)} limit</span>
                       </div>
                     </div>
                   );
@@ -606,7 +640,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                 <div className="h-48 w-48 mx-auto rounded-full border-8 border-violet-600 border-t-indigo-500 border-r-amber-500 border-b-rose-500 flex items-center justify-center shadow-inner">
                   <div className="text-center">
                     <span className="text-xs font-medium text-muted-foreground block">Total Spent</span>
-                    <span className="text-xl font-extrabold text-foreground">$3,840.50</span>
+                    <span className="text-xl font-extrabold text-foreground">{formatCurrency(3840.5)}</span>
                   </div>
                 </div>
 
@@ -648,7 +682,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                     <h3 className="text-base font-bold text-foreground">Recurring Waste Alert</h3>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    We noticed 3 video streaming services billed this month totaling $58. Canceling duplicate services could save you $420 annually.
+                    We noticed 3 video streaming services billed this month totaling {formatCurrency(58)}. Canceling duplicate services could save you {formatCurrency(420)} annually.
                   </p>
                 </div>
 
@@ -660,7 +694,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                     <h3 className="text-base font-bold text-foreground">High-Yield Interest Boost</h3>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    By transferring $2,000 from your idle checking account into a 5.0% APY Money Market account, you will earn $100 extra passive income this year.
+                    By transferring {formatCurrency(2000)} from your idle checking account into a 5.0% APY Money Market account, you will earn {formatCurrency(100)} extra passive income this year.
                   </p>
                 </div>
               </div>
@@ -680,10 +714,10 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                   <span className="text-xs font-semibold text-violet-500 uppercase tracking-widest bg-violet-500/10 px-3 py-1 rounded-full border border-violet-500/20">
                     Projected Balance (Aug 31)
                   </span>
-                  <h2 className="text-4xl font-extrabold text-foreground tracking-tight">$52,910.00</h2>
+                  <h2 className="text-4xl font-extrabold text-foreground tracking-tight">{formatCurrency(52910)}</h2>
                   <p className="text-xs text-emerald-500 font-bold flex items-center justify-center gap-1">
                     <ArrowUpRight className="h-4 w-4" />
-                    <span>+$4,660 net increase predicted</span>
+                    <span>+{formatCurrency(4660)} net increase predicted</span>
                   </p>
                 </div>
               </div>
@@ -781,7 +815,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                   </div>
                   <CustomSelect
                     value={currency}
-                    onChange={setCurrency}
+                    onChange={(value) => setCurrency(value as CurrencyCode)}
                     options={[
                       { value: 'USD', label: 'USD ($)', icon: '💵' },
                       { value: 'EUR', label: 'EUR (€)', icon: '💶' },
@@ -832,7 +866,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Amount ($)</label>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Amount ({currency})</label>
                   <input
                     type="number"
                     step="0.01"

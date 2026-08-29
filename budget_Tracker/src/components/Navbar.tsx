@@ -120,7 +120,7 @@ export default function Navbar({
                 className={`relative py-1 text-sm transition-colors duration-200 cursor-pointer ${
                   isActive
                     ? 'text-violet-600 dark:text-violet-400 font-bold'
-                    : 'text-slate-900 dark:text-zinc-100 hover:text-violet-600 dark:hover:text-violet-400 font-semibold'
+                    : 'text-black dark:text-white hover:text-violet-600 dark:hover:text-violet-400 font-semibold'
                 }`}
               >
                 <span>{link.name}</span>
@@ -193,7 +193,7 @@ export default function Navbar({
                 className={`group flex items-center justify-between rounded-xl px-4 py-2.5 text-base font-semibold transition-all duration-200 cursor-pointer ${
                   isActive
                     ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400 font-bold'
-                    : 'text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 hover:text-violet-600 dark:hover:text-violet-400'
+                    : 'text-black dark:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 hover:text-violet-600 dark:hover:text-violet-400'
                 }`}
               >
                 <span>{link.name}</span>
