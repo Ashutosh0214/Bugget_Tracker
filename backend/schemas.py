@@ -8,6 +8,14 @@ class UserSignup(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
 
+    @field_validator("password")
+    @classmethod
+    def password_fits_bcrypt(cls, value: str) -> str:
+        # bcrypt operates on bytes, not Unicode characters. Never truncate passwords.
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must be at most 72 UTF-8 bytes (some characters use multiple bytes).")
+        return value
+
 class UserLogin(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     email: EmailStr

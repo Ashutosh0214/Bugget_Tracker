@@ -1,4 +1,11 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/+$/, '');
+
+export class ApiError extends Error {
+  constructor(message: string, public fieldErrors: Record<string, string> = {}) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
 
 export interface User {
   id: string | number;
@@ -58,7 +65,19 @@ export const apiFetch = async <T = any>(endpoint: string, options: RequestInit =
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'An error occurred with the request');
+      const fieldErrors: Record<string, string> = {};
+      if (Array.isArray(data.errors)) {
+        for (const error of data.errors) {
+          if (typeof error.field === 'string' && typeof error.message === 'string') {
+            fieldErrors[error.field] = error.message;
+          }
+        }
+      }
+      const details = Object.entries(fieldErrors).map(([field, message]) => `${field}: ${message}`);
+      throw new ApiError(
+        [data.message || 'An error occurred with the request', ...details].join('. '),
+        fieldErrors,
+      );
     }
 
     return data as T;

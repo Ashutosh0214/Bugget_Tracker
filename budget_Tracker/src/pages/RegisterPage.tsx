@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertCircle,
@@ -14,6 +14,8 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useAuth } from '@/context/AuthContext';
+import { ApiError } from '@/lib/api';
 
 interface RegisterFormData {
   name: string;
@@ -32,32 +34,44 @@ const INITIAL_FORM: RegisterFormData = {
 };
 
 export default function RegisterPage() {
+  const { signup } = useAuth();
+  const submissionPending = useRef(false);
   const [formData, setFormData] = useState<RegisterFormData>(INITIAL_FORM);
   const [errors, setErrors] = useState<RegisterErrors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setFormData((current) => ({ ...current, [name]: value }));
     setErrors((current) => ({ ...current, [name]: undefined }));
     setSubmitted(false);
+    setApiError('');
   };
 
   const validateForm = () => {
     const nextErrors: RegisterErrors = {};
 
     if (!formData.name.trim()) nextErrors.name = 'Please enter your full name.';
+    else if (Array.from(formData.name.trim()).length > 100) nextErrors.name = 'Name must be at most 100 characters long.';
     if (!formData.email.trim()) {
       nextErrors.email = 'Please enter your email address.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
       nextErrors.email = 'Please enter a valid email address.';
     }
-    if (!formData.password) {
+    // UserSignup strips surrounding whitespace before checking string lengths.
+    const passwordLength = Array.from(formData.password.trim()).length;
+    if (!passwordLength) {
       nextErrors.password = 'Please create a password.';
-    } else if (formData.password.length < 6) {
-      nextErrors.password = 'Password must be at least 6 characters long.';
+    } else if (passwordLength < 8) {
+      nextErrors.password = 'Password must be at least 8 characters long.';
+    } else if (passwordLength > 128) {
+      nextErrors.password = 'Password must be at most 128 characters long.';
+    } else if (new TextEncoder().encode(formData.password.trim()).length > 72) {
+      nextErrors.password = 'Password must be at most 72 UTF-8 bytes (some characters use multiple bytes).';
     }
     if (!formData.confirmPassword) {
       nextErrors.confirmPassword = 'Please confirm your password.';
@@ -69,13 +83,35 @@ export default function RegisterPage() {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submissionPending.current || submitted) return;
     setSubmitted(false);
+    setApiError('');
     if (!validateForm()) return;
 
-    console.log('Spendze register form:', formData);
-    setSubmitted(true);
+    submissionPending.current = true;
+    setIsLoading(true);
+    try {
+      // Reuse AuthContext's existing JWT/session handling; never send confirmation.
+      await signup(formData.name.trim(), formData.email.trim(), formData.password.trim());
+      setSubmitted(true);
+      setFormData(INITIAL_FORM);
+    } catch (error: unknown) {
+      if (error instanceof ApiError) {
+        const fieldErrors: RegisterErrors = {};
+        for (const field of ['name', 'email', 'password'] as const) {
+          if (error.fieldErrors[field]) fieldErrors[field] = error.fieldErrors[field];
+        }
+        setErrors(fieldErrors);
+      }
+      setApiError(error instanceof TypeError
+        ? 'Unable to reach the server. Check your connection and try again.'
+        : error instanceof Error ? error.message : 'Registration failed. Please try again.');
+    } finally {
+      submissionPending.current = false;
+      setIsLoading(false);
+    }
   };
 
   const passwordInput = (
@@ -167,20 +203,21 @@ export default function RegisterPage() {
           </div>
 
           {submitted && (
-            <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            <div role="status" className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs font-medium text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="size-4 shrink-0" />
-              Form validated successfully. Backend registration will be connected next.
+              <span>Account created successfully. You are signed in. <Link to="/" className="underline">Continue to Spendzy</Link></span>
             </div>
           )}
 
-          {Object.keys(errors).length > 0 && (
-            <div className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs font-medium text-destructive">
+          {(apiError || Object.values(errors).some(Boolean)) && (
+            <div role="alert" className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs font-medium text-destructive">
               <AlertCircle className="size-4 shrink-0" />
-              Please correct the highlighted fields.
+              {apiError || 'Please correct the highlighted fields.'}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-3.5">
+          <form onSubmit={handleSubmit} noValidate aria-busy={isLoading}>
+            <fieldset disabled={isLoading || submitted} className="space-y-3.5">
             <div>
               <label htmlFor="name" className="mb-1 block text-[11px] font-semibold text-muted-foreground">Full Name</label>
               <div className="relative">
@@ -202,9 +239,10 @@ export default function RegisterPage() {
             {passwordInput('password', 'Password', showPassword, () => setShowPassword((value) => !value))}
             {passwordInput('confirmPassword', 'Confirm Password', showConfirmPassword, () => setShowConfirmPassword((value) => !value))}
 
-            <Button type="submit" className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 font-semibold text-white shadow-md hover:shadow-violet-600/30">
-              Create Account
+            <Button type="submit" disabled={isLoading || submitted} className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 font-semibold text-white shadow-md hover:shadow-violet-600/30">
+              {isLoading ? 'Creating Account...' : submitted ? 'Account Created' : 'Create Account'}
             </Button>
+            </fieldset>
           </form>
 
           <p className="text-center text-xs text-muted-foreground">
