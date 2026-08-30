@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
-import AuthModal from './components/AuthModal';
 import DashboardLayout from './components/DashboardLayout';
 import HeroSectionDemo from '@/components/ui/demo';
 import TextAnimation from '@/components/ui/staggerText';
@@ -20,10 +20,9 @@ import './App.css';
 type ViewMode = 'landing' | 'dashboard' | 'pricing';
 
 function App() {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<'light' | 'dark'>('light'); // default to light mode
   const [viewMode, setViewMode] = useState<ViewMode>('landing');
-  const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
-  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'signup'>('signup');
 
   useEffect(() => {
     if (mode === 'dark') {
@@ -38,8 +37,7 @@ function App() {
   };
 
   const handleOpenAuth = (initialMode: 'login' | 'signup' = 'signup') => {
-    setAuthInitialMode(initialMode);
-    setAuthModalOpen(true);
+    navigate(initialMode === 'signup' ? '/register' : '/login');
   };
 
   const handleSelectSection = (href: string) => {
@@ -139,12 +137,6 @@ function App() {
           </div>
         </footer>
 
-        {/* Authentication Modal */}
-        <AuthModal
-          isOpen={authModalOpen}
-          onClose={() => setAuthModalOpen(false)}
-          initialMode={authInitialMode}
-        />
       </motion.div>
     );
   }
@@ -214,12 +206,6 @@ function App() {
         </div>
       </footer>
 
-      {/* Authentication Modal */}
-      <AuthModal
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-        initialMode={authInitialMode}
-      />
     </motion.div>
   );
 }

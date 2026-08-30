@@ -17,9 +17,10 @@ export interface AuthPageProps {
   initialMode?: 'signin' | 'signup' | 'login';
   onBackToHome?: () => void;
   onSuccess?: () => void;
+  onRequestSignup?: () => void;
 }
 
-export function AuthPage({ initialMode = 'signin', onBackToHome, onSuccess }: AuthPageProps) {
+export function AuthPage({ initialMode = 'signin', onBackToHome, onSuccess, onRequestSignup }: AuthPageProps) {
   const { login, signup } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode === 'signup' ? 'signup' : 'signin');
   const [email, setEmail] = useState('');
@@ -186,6 +187,10 @@ export function AuthPage({ initialMode = 'signin', onBackToHome, onSuccess }: Au
             <button
               type="button"
               onClick={() => {
+                if (onRequestSignup) {
+                  onRequestSignup();
+                  return;
+                }
                 setMode('signup');
                 setErrorMsg('');
               }}
