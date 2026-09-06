@@ -6,6 +6,7 @@ import { BudgetUsageStatus, classifyBudgetUsage } from './budgetStatus';
 export type AssistantIntent =
   | 'summary' | 'total_expense' | 'income' | 'savings' | 'savings_rate'
   | 'category_spending' | 'top_category' | 'budget_status' | 'budget_remaining'
+  | 'hypothetical_spending'
   | 'budget_risk' | 'safe_daily_spend' | 'forecast_expense' | 'forecast_savings'
   | 'largest_expense' | 'recent_transactions' | 'month_comparison' | 'help'
   | 'non_financial' | 'unknown';
@@ -15,8 +16,20 @@ export interface DetectedIntent {
   category?: string;
 }
 
+export interface AssistantConversationContext {
+  lastIntent?: string;
+  lastCategory?: string;
+}
+
+export interface FinancialAnswerResult {
+  text: string;
+  context: AssistantConversationContext;
+}
+
 const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 const categoryToken = (value: string) => normalize(value).replace(/ies$/, 'y').replace(/s$/, '');
+export const hasContextualCategoryReference = (value: string) =>
+  /\b(that category|same category|that budget|that expense|there|it|that one|this category|the same category)\b/i.test(value);
 
 const joinNames = (names: string[]) => names.length <= 1 ? names[0] ?? '' : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 const displayPercent = (percent: number) => percent.toFixed(1).replace(/\.0$/, '');
@@ -53,9 +66,10 @@ export function detectFinancialIntent(question: string, categories: string[]): D
   if (/compare.*last month|more than last month|less than last month|month.*comparison/.test(text)) return { intent: 'month_comparison' };
   if (/largest expense|biggest expense|biggest transaction/.test(text)) return { intent: 'largest_expense' };
   if (/recent expense|spent recently|recent transaction/.test(text)) return { intent: 'recent_transactions' };
-  if (/where.*spending.*most|top spending category|biggest spending category|which category.*most|category uses most/.test(text)) return { intent: 'top_category' };
+  if (/where.*(?:spend|spent|spending).*most|top spending category|biggest spending category|which category.*most|category uses most/.test(text)) return { intent: 'top_category' };
   if (/exceeded any budget|budgets? almost used|how are my budgets|budget status/.test(text)) return { intent: 'budget_status', category };
   if (/budget.*left|remaining.*budget|how much.*budget.*left/.test(text)) return { intent: 'budget_remaining', category };
+  if (/(?:what if|if i).*(?:spend|add)|(?:spend|add)(?:ing)?\s+(?:another\s+)?(?:rs\s*)?[\d,]+.*(?:more|there|category)/.test(text)) return { intent: 'hypothetical_spending', category };
   if (category && /budget|close to/.test(text)) return { intent: 'budget_status', category };
   if (category && /spend|spent|expense|how much/.test(text)) return { intent: 'category_spending', category };
   if (/savings rate|rate.*saving/.test(text)) return { intent: 'savings_rate' };
@@ -78,6 +92,7 @@ export function answerFinancialQuestion(
   budgets: BudgetData[],
   now: Date,
   formatAmount: (amount: number) => string,
+  categoryOverride?: string,
 ): string {
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
@@ -88,7 +103,7 @@ export function answerFinancialQuestion(
   const insightResult = generateFinancialInsights(transactions, budgets, month, year, formatAmount);
   const forecast = calculateFinancialForecast(transactions, budgets, month, year, now);
   const summary = insightResult.summary;
-  const category = detected.category;
+  const category = detected.category ?? categoryOverride;
   const selectedBudget = category ? budgets.find((budget) => categoryToken(budget.category) === categoryToken(category)) : undefined;
   const selectedCategorySpend = category ? expenses.filter((transaction) => categoryToken(transaction.category) === categoryToken(category)).reduce((sum, transaction) => sum + Math.abs(Number(transaction.amount) || 0), 0) : 0;
 
@@ -114,6 +129,20 @@ export function answerFinancialQuestion(
       if (selectedBudget) { const remaining = Math.max(0, selectedBudget.amount - selectedBudget.spent); const { percent: usage, status } = classifyBudgetUsage(selectedBudget.spent, selectedBudget.amount); const statusText = status === 'exceeded' ? 'This budget is exceeded.' : status === 'almost-reached' ? 'This budget is almost at its limit.' : status === 'getting-close' ? 'This budget is getting close to its limit.' : 'This budget is within its normal range.'; return `Your ${selectedBudget.category} budget is ${formatAmount(selectedBudget.amount)}. You've spent ${formatAmount(selectedBudget.spent)} (${displayPercent(usage)}%), ${selectedBudget.spent >= selectedBudget.amount ? 'with nothing remaining.' : `leaving ${formatAmount(remaining)}.`} ${statusText}`; }
       if (budgets.length === 0) return "You don't have any budgets for this month yet.";
       return describeBudgetAttention(budgets);
+    }
+    case 'hypothetical_spending': {
+      if (!category) return 'Which category are you referring to?';
+      const amountMatch = /(?:₹|rs\.?\s*)?([\d,]+(?:\.\d+)?)/i.exec(question);
+      if (!amountMatch) return 'Tell me how much additional spending you want to test.';
+      if (!selectedBudget) return `I found the ${category} category, but there is no ${category} budget recorded for this month.`;
+      const additionalAmount = Number(amountMatch[1].replace(/,/g, ''));
+      const newSpending = selectedBudget.spent + additionalAmount;
+      const usage = selectedBudget.amount > 0 ? (newSpending / selectedBudget.amount) * 100 : 0;
+      const remaining = Math.max(0, selectedBudget.amount - newSpending);
+      const outcome = newSpending > selectedBudget.amount
+        ? 'the budget would be exceeded'
+        : `${formatAmount(remaining)} would remain`;
+      return `If you spend another ${formatAmount(additionalAmount)} on ${selectedBudget.category}, recorded spending would become ${formatAmount(newSpending)} — ${displayPercent(usage)}% of the ${formatAmount(selectedBudget.amount)} budget — and ${outcome}.`;
     }
     case 'safe_daily_spend': {
       if (!category) return 'Tell me which category budget you want a safe daily amount for.';
@@ -146,4 +175,62 @@ export function answerFinancialQuestion(
     }
     default: return "I can't answer that from your Spendze data yet.";
   }
+}
+
+export function answerFinancialQuestionWithContext(
+  question: string,
+  transactions: TransactionData[],
+  budgets: BudgetData[],
+  now: Date,
+  formatAmount: (amount: number) => string,
+  previousContext: AssistantConversationContext,
+): FinancialAnswerResult {
+  const categories = Array.from(new Set([
+    ...transactions.map((item) => item.category),
+    ...budgets.map((item) => item.category),
+  ].filter(Boolean)));
+  const detected = detectFinancialIntent(question, categories);
+  const previousCategory = previousContext.lastCategory
+    ? categories.find((category) => categoryToken(category) === categoryToken(previousContext.lastCategory!))
+    : undefined;
+  const hasContextualReference = hasContextualCategoryReference(question);
+  const referencedCategory = hasContextualReference ? previousCategory : undefined;
+  const resolvedCategory = detected.category ?? referencedCategory;
+  if (hasContextualReference && !resolvedCategory) {
+    return {
+      text: 'Which category are you referring to?',
+      context: { lastIntent: detected.intent },
+    };
+  }
+  const text = answerFinancialQuestion(question, transactions, budgets, now, formatAmount, resolvedCategory);
+
+  let resultCategory: string | undefined;
+  if (detected.intent === 'top_category') {
+    resultCategory = generateFinancialInsights(
+      transactions,
+      budgets,
+      now.getMonth() + 1,
+      now.getFullYear(),
+      formatAmount,
+    ).summary.topCategory?.name;
+  } else if (detected.intent === 'largest_expense') {
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    resultCategory = transactions
+      .filter((transaction) => {
+        const period = periodOf(transaction.date);
+        return period?.month === month && period.year === year && Number(transaction.amount) < 0;
+      })
+      .sort((first, second) => Math.abs(Number(second.amount)) - Math.abs(Number(first.amount)))[0]?.category;
+  } else if (resolvedCategory && [
+    'category_spending', 'budget_status', 'budget_remaining', 'budget_risk',
+    'safe_daily_spend', 'hypothetical_spending',
+  ].includes(detected.intent)) {
+    resultCategory = resolvedCategory;
+  }
+
+  return {
+    text,
+    context: { lastIntent: detected.intent, ...(resultCategory ? { lastCategory: resultCategory } : {}) },
+  };
 }

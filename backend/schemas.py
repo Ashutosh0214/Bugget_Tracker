@@ -146,13 +146,21 @@ class AIChatHistoryMessage(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
 
 
+class AIConversationContext(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    last_intent: Optional[str] = Field(default=None, max_length=60)
+    last_category: Optional[str] = Field(default=None, max_length=60)
+
+
 class AIChatRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     message: str = Field(min_length=1, max_length=1000)
     history: List[AIChatHistoryMessage] = Field(default_factory=list, max_length=10)
+    context: AIConversationContext = Field(default_factory=AIConversationContext)
 
 
 class AIChatResponse(BaseModel):
     reply: str
     source: Literal["deterministic", "gemini", "fallback"]
     forecast_warning: bool = False
+    context: AIConversationContext = Field(default_factory=AIConversationContext)

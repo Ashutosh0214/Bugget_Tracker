@@ -7,7 +7,11 @@ import { useAuth } from '../context/AuthContext';
 import { aiApi, budgetApi, BudgetData, BudgetWriteData, transactionApi, TransactionData, TransactionWriteData } from '../lib/api';
 import { generateFinancialInsights, InsightSeverity, InsightType } from '../lib/financialInsights';
 import { BudgetRisk, calculateFinancialForecast } from '../lib/financialForecast';
-import { answerFinancialQuestion, detectFinancialIntent } from '../lib/financialAssistant';
+import {
+  answerFinancialQuestionWithContext,
+  AssistantConversationContext,
+  detectFinancialIntent,
+} from '../lib/financialAssistant';
 
 import { 
   Search, 
@@ -262,6 +266,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const chatSubmittingRef = useRef(false);
   const chatSessionRef = useRef(0);
+  const chatContextRef = useRef<AssistantConversationContext>({});
 
   // Fetch only the authenticated user's transactions from the existing API.
   useEffect(() => {
@@ -781,20 +786,30 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
       } else {
         const categories = Array.from(new Set([...transactions.map((item) => item.category), ...budgets.map((item) => item.category)].filter(Boolean)));
         const detected = detectFinancialIntent(normalizedQuestion, categories);
-        const hasContextualReference = /\b(that category|same category|that budget|that expense|there|it)\b/i.test(normalizedQuestion);
-        if (detected.intent === 'unknown' || hasContextualReference) {
+        if (detected.intent === 'unknown') {
           try {
             const recentHistory = chatMessages.slice(-10).map((message) => ({
               role: message.sender === 'ai' ? 'assistant' as const : 'user' as const,
               content: message.text,
             }));
-            answer = (await aiApi.chat(normalizedQuestion, recentHistory)).reply;
+            const response = await aiApi.chat(normalizedQuestion, recentHistory, chatContextRef.current);
+            answer = response.reply;
+            chatContextRef.current = response.context;
           } catch (error: unknown) {
             console.error('Conversational assistant request failed:', error);
             answer = "Sorry, I couldn't process that request. Please try again.";
           }
         } else {
-          answer = answerFinancialQuestion(normalizedQuestion, transactions, budgets, currentDate, formatCurrency);
+          const result = answerFinancialQuestionWithContext(
+            normalizedQuestion,
+            transactions,
+            budgets,
+            currentDate,
+            formatCurrency,
+            chatContextRef.current,
+          );
+          answer = result.text;
+          chatContextRef.current = result.context;
         }
       }
       const remainingDelay = Math.max(0, 250 - (Date.now() - startedAt));
@@ -812,6 +827,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
   const handleNewChat = () => {
     chatSessionRef.current += 1;
     chatSubmittingRef.current = false;
+    chatContextRef.current = {};
     setChatMessages([]);
     setChatInput('');
     setChatThinking(false);

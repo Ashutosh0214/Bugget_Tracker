@@ -177,9 +177,37 @@ export interface AIChatResponse {
   reply: string;
   source: 'deterministic' | 'gemini' | 'fallback';
   forecast_warning: boolean;
+  context: {
+    lastIntent?: string;
+    lastCategory?: string;
+  };
+}
+
+interface AIChatApiResponse extends Omit<AIChatResponse, 'context'> {
+  context: {
+    last_intent?: string;
+    last_category?: string;
+  };
 }
 
 export const aiApi = {
-  chat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }> = []): Promise<AIChatResponse> =>
-    apiFetch<AIChatResponse>('/ai/chat', { method: 'POST', body: JSON.stringify({ message, history: history.slice(-10) }) }),
+  chat: (
+    message: string,
+    history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+    context: { lastIntent?: string; lastCategory?: string } = {},
+  ): Promise<AIChatResponse> =>
+    apiFetch<AIChatApiResponse>('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        history: history.slice(-10),
+        context: { last_intent: context.lastIntent, last_category: context.lastCategory },
+      }),
+    }).then((response) => ({
+      ...response,
+      context: {
+        lastIntent: response.context.last_intent,
+        lastCategory: response.context.last_category,
+      },
+    })),
 };

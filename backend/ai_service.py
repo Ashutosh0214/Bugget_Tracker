@@ -101,28 +101,94 @@ def _context_categories(context: dict) -> list[str]:
     return list(dict.fromkeys(name for name in names if name))
 
 
-def _referenced_category(message: str, context: dict, history: list[dict]) -> str | None:
+CONTEXT_REFERENCE_PATTERN = re.compile(
+    r"\b(that category|same category|that budget|that expense|there|it|that one|this category|the same category)\b",
+    re.IGNORECASE,
+)
+
+
+def _referenced_category(
+    message: str,
+    context: dict,
+    conversation_context: dict | None = None,
+) -> str | None:
     categories = _context_categories(context)
     normalized_message = message.casefold()
     for category in categories:
         if category.casefold() in normalized_message:
             return category
-    if not re.search(r"\b(that category|same category|that budget|that expense|there|it)\b", normalized_message):
+    if not CONTEXT_REFERENCE_PATTERN.search(normalized_message):
         return None
-    for item in reversed(history[-10:]):
-        content = item.get("content", "").casefold()
-        for category in categories:
-            if category.casefold() in content:
-                return category
-    return None
+    saved_category = (conversation_context or {}).get("last_category")
+    if not saved_category:
+        return None
+    return next(
+        (category for category in categories if category.casefold() == str(saved_category).casefold()),
+        None,
+    )
 
 
-def deterministic_reply(message: str, context: dict, history: list[dict] | None = None) -> str | None:
+def derive_conversation_context(
+    message: str,
+    context: dict,
+    previous_context: dict | None = None,
+) -> dict:
+    text = re.sub(r"\s+", " ", message.casefold()).strip()
+    category = _referenced_category(message, context, previous_context)
+    intent = "unknown"
+
+    if re.search(r"where.*(?:spend|spent|spending).*most|top spending category|biggest spending category|which category.*most", text):
+        intent = "top_spending_category"
+        category = (context.get("top_category") or {}).get("name")
+    elif re.search(r"largest expense|biggest expense|biggest transaction", text):
+        intent = "largest_expense"
+        category = (context.get("largest_expense") or {}).get("category")
+    elif re.search(r"which category.*closest.*budget|closest.*budget", text):
+        intent = "closest_budget"
+        budgets = context.get("budgets", [])
+        category = max(budgets, key=lambda item: item["percent_used"])["category"] if budgets else None
+    elif re.search(r"(?:what if|if i).*(?:spend|add)|(?:spend|add)(?:ing)?\s+(?:another\s+)?₹?\s*[\d,]+", text):
+        intent = "hypothetical_spending"
+    elif re.search(r"budget.*left|how much.*budget|remaining.*budget", text):
+        intent = "budget_remaining"
+    elif "budget" in text:
+        intent = "budget_status"
+    elif re.search(r"how much.*spent|total expenses?", text):
+        intent = "total_spending"
+    elif re.search(r"how much.*income|what.*income|how much.*earn", text):
+        intent = "total_income"
+    elif "savings rate" in text:
+        intent = "savings_rate"
+    elif "saving" in text:
+        intent = "savings"
+    elif "forecast" in text or "projected" in text:
+        intent = "forecast"
+    elif "summary" in text or "how are my finances" in text:
+        intent = "financial_summary"
+
+    return {
+        "last_intent": intent,
+        **({"last_category": category} if category else {}),
+    }
+
+
+def deterministic_reply(
+    message: str,
+    context: dict,
+    history: list[dict] | None = None,
+    conversation_context: dict | None = None,
+) -> str | None:
     history = history or []
     text = re.sub(r"\s+", " ", message.lower()).strip()
     recorded = context["recorded"]
-    category = _referenced_category(message, context, history)
-    contextual_reference = bool(re.search(r"\b(that category|same category|that budget|that expense|there|it)\b", text))
+    category = _referenced_category(message, context, conversation_context)
+    contextual_reference = bool(CONTEXT_REFERENCE_PATTERN.search(text))
+
+    if re.search(r"where.*(?:spend|spent|spending).*most|top spending category|biggest spending category|which category.*most", text):
+        top = context.get("top_category")
+        if not top:
+            return "There are no current-month expenses to identify a top category."
+        return f"{top['name']} is your top spending category this month at {_money(top['amount'])}, representing {top['percent']:.1f}% of expenses."
 
     if re.search(r"which category.*closest.*budget|closest.*budget", text):
         budgets = context.get("budgets", [])
@@ -145,13 +211,19 @@ def deterministic_reply(message: str, context: dict, history: list[dict] | None 
         result = "the budget would be exceeded" if new_spending > budget["limit"] else f"{_money(remaining)} would remain"
         return f"If you spend another {_money(amount)} on {category}, recorded spending would become {_money(new_spending)} — {usage:.1f}% of the {_money(budget['limit'])} budget — and {result}."
 
-    if contextual_reference and re.search(r"budget.*left|how much.*budget|remaining.*budget", text):
+    if (category or contextual_reference) and re.search(r"budget.*left|how much.*budget|remaining.*budget", text):
         if not category:
             return "Which category are you referring to?"
         budget = next((item for item in context.get("budgets", []) if item["category"].casefold() == category.casefold()), None)
         if not budget:
             return f"There is no {category} budget recorded for this month."
         return f"Your {category} budget has {_money(budget['remaining'])} left. You've used {budget['percent_used']:.1f}% ({_money(budget['spent'])} of {_money(budget['limit'])})."
+
+    if category and re.search(r"budget (?:usage|status)|how.*budget|used.*budget", text):
+        budget = next((item for item in context.get("budgets", []) if item["category"].casefold() == category.casefold()), None)
+        if not budget:
+            return f"There is no {category} budget recorded for this month."
+        return f"Your {category} budget is at {budget['percent_used']:.1f}% usage ({_money(budget['spent'])} of {_money(budget['limit'])})."
 
     if contextual_reference and re.search(r"which category|category.*(?:was|is)", text):
         return f"It was in the {category} category." if category else "Which expense or category are you referring to?"
@@ -162,6 +234,18 @@ def deterministic_reply(message: str, context: dict, history: list[dict] | None 
         return f"You've recorded {_money(recorded['income'])} in income this month."
     if "savings rate" in text:
         return "I can't calculate a savings rate because no income is recorded this month." if recorded["savings_rate"] is None else f"Your savings rate this month is {recorded['savings_rate']:.1f}%."
+    if re.search(r"how much.*sav|net savings|what.*savings", text):
+        return f"Your net savings this month are {_money(recorded['net_savings'])}."
+    if re.search(r"largest expense|biggest expense|biggest transaction", text):
+        largest = context.get("largest_expense")
+        return "There are no current-month expenses to compare." if not largest else f"Your largest expense was {largest['name']} in {largest['category']} for {_money(largest['amount'])}."
+    if re.search(r"projected spending|spending forecast|how much will i spend", text):
+        forecast = context.get("forecast")
+        return "I do not have enough current-month expense data to forecast spending yet." if not forecast else f"Month-end spending is projected around {_money(forecast['projected_expense'])}. Forecast confidence is {forecast['confidence']}."
+    if re.search(r"financial summary|summary|how are my finances", text):
+        top = context.get("top_category")
+        top_text = f" {top['name']} is your top category at {_money(top['amount'])}." if top else ""
+        return f"This month you've recorded {_money(recorded['income'])} in income and {_money(recorded['expenses'])} in expenses, leaving net savings of {_money(recorded['net_savings'])}.{top_text}"
     return None
 
 
