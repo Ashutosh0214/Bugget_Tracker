@@ -4,6 +4,7 @@ import CustomSelect from './ui/CustomSelect';
 import TextAnimation from '@/components/ui/staggerText';
 import { useAuth } from '../context/AuthContext';
 import { budgetApi, BudgetData, BudgetWriteData, transactionApi, TransactionData, TransactionWriteData } from '../lib/api';
+import { generateFinancialInsights, InsightSeverity, InsightType } from '../lib/financialInsights';
 
 import { 
   Search, 
@@ -231,7 +232,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
 
   useEffect(() => {
     let cancelled = false;
-    if (!isAuthenticated || (activeTab !== 'budgets' && activeTab !== 'analytics')) return;
+    if (!isAuthenticated || !['budgets', 'analytics', 'ai-insights'].includes(activeTab)) return;
     setBudgetsLoading(true);
     setBudgetsError('');
     budgetApi.getAll(selectedBudgetMonth, selectedBudgetYear)
@@ -241,6 +242,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
       .catch((error: unknown) => {
         if (cancelled) return;
         console.error('Failed to load budgets:', error);
+        setBudgets([]);
         setBudgetsError('Unable to load budgets. Please try again.');
       })
       .finally(() => {
@@ -433,6 +435,21 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
     });
     return `conic-gradient(${stops.join(', ')})`;
   }, [analytics.categories]);
+
+  const financialInsights = useMemo(
+    () => generateFinancialInsights(transactions, budgets, selectedBudgetMonth, selectedBudgetYear, formatCurrency),
+    [budgets, currencyFormatter, selectedBudgetMonth, selectedBudgetYear, transactions],
+  );
+
+  const insightStyles: Record<InsightSeverity, string> = {
+    positive: 'border-emerald-500/25 bg-emerald-500/5',
+    info: 'border-violet-500/25 bg-violet-500/5',
+    warning: 'border-amber-500/30 bg-amber-500/5',
+    critical: 'border-rose-500/30 bg-rose-500/5',
+  };
+  const insightIcons: Record<InsightType, string> = {
+    budget: '⚠️', spending: '📈', saving: '💰', category: '🧾', trend: '↗️',
+  };
 
   useEffect(() => {
     localStorage.setItem(CURRENCY_STORAGE_KEY, currency);
@@ -1281,27 +1298,74 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
           {/* TAB 5: AI INSIGHTS */}
           {activeTab === 'ai-insights' && (
             <div className="space-y-6 animate-in fade-in duration-300">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                  <span>🤖 AI Financial Insights</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-500 border border-violet-500/30 uppercase font-mono">Powered by Spendzy AI</span>
-                </h1>
-                <p className="text-xs text-muted-foreground">Automated recommendations generated for your profile</p>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h1 className="flex flex-wrap items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
+                    <span>🤖 AI Financial Insights</span>
+                    <span className="rounded-full border border-violet-500/30 bg-violet-500/20 px-2 py-0.5 font-mono text-xs uppercase text-violet-500">Powered by Spendzy AI</span>
+                  </h1>
+                  <p className="text-xs text-muted-foreground">Personalized financial insights generated from your spending patterns</p>
+                </div>
+                <div className="flex gap-2">
+                  <select value={selectedBudgetMonth} onChange={(event) => setSelectedBudgetMonth(Number(event.target.value))} className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground outline-none focus:ring-2 focus:ring-violet-500">
+                    {MONTH_NAMES.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
+                  </select>
+                  <select value={selectedBudgetYear} onChange={(event) => setSelectedBudgetYear(Number(event.target.value))} className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground outline-none focus:ring-2 focus:ring-violet-500">
+                    {Array.from({ length: 5 }, (_, index) => currentDate.getFullYear() - 2 + index).map((year) => <option key={year} value={year}>{year}</option>)}
+                  </select>
+                </div>
               </div>
 
-              <div className="p-6 rounded-3xl border border-violet-500/30 bg-gradient-to-br from-violet-600/10 to-indigo-600/10 shadow-sm space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-2xl bg-violet-600 text-white">
-                    <Sparkles className="h-5 w-5" />
-                  </div>
-                  <h3 className="text-base font-bold text-foreground">Personalized insights</h3>
+              {transactionsLoading || budgetsLoading ? (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="h-40 animate-pulse rounded-3xl bg-muted" /><div className="h-40 animate-pulse rounded-3xl bg-muted" /></div>
+              ) : transactionsError ? (
+                <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">Unable to load financial insights because transactions could not be loaded.</div>
+              ) : financialInsights.transactionCount === 0 ? (
+                <div className="rounded-3xl border border-dashed border-border bg-card p-12 text-center shadow-sm">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-500"><Sparkles className="h-5 w-5" /></div>
+                  <h2 className="mt-4 font-bold text-foreground">No financial insights yet</h2>
+                  <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">Add a few income and expense transactions to help Spendze understand your financial activity.</p>
+                  <button type="button" onClick={openAddTransaction} className="mt-5 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-violet-700">Add Transaction</button>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {transactions.length === 0
-                    ? 'Add some transactions to unlock personalized insights.'
-                    : 'Personalized AI insights are not available yet.'}
-                </p>
-              </div>
+              ) : (
+                <>
+                  <div className="rounded-3xl border border-violet-500/30 bg-gradient-to-br from-violet-600/10 to-indigo-600/10 p-6 shadow-sm">
+                    <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Financial Health</p>
+                        <h2 className="mt-1 text-xl font-extrabold uppercase text-foreground">{financialInsights.summary.health?.replace('-', ' ') ?? 'Not available'}</h2>
+                        <p className="mt-2 text-xs text-muted-foreground">{financialInsights.summary.healthReason}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-right">
+                        <div><p className="text-[10px] text-muted-foreground">Savings rate</p><p className="font-bold text-foreground">{financialInsights.summary.savingsRate === null ? '—' : `${financialInsights.summary.savingsRate.toFixed(1)}%`}</p></div>
+                        <div><p className="text-[10px] text-muted-foreground">Budget alerts</p><p className="font-bold text-foreground">{financialInsights.summary.budgetsExceeded + financialInsights.summary.budgetsNearLimit}</p></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {financialInsights.insights.map((insight) => (
+                      <div key={insight.id} className={`rounded-3xl border p-5 shadow-sm ${insightStyles[insight.severity]}`}>
+                        <div className="flex items-start gap-3"><span className="text-lg" aria-hidden="true">{insightIcons[insight.type]}</span><div className="min-w-0 flex-1"><p className="text-sm font-bold text-foreground">{insight.title}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{insight.message}</p></div></div>
+                        {(insight.metric || insight.action) && <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3">{insight.metric && <span className="text-xs font-bold text-foreground">{insight.metric}</span>}{insight.action && <span className="text-[10px] font-semibold text-violet-500">{insight.action}</span>}</div>}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                    <h2 className="text-sm font-bold text-foreground">Monthly Financial Summary</h2>
+                    <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+                      <div><p className="text-[10px] text-muted-foreground">Income</p><p className="mt-1 text-sm font-bold text-emerald-500">{formatCurrency(financialInsights.summary.monthlyIncome)}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground">Expenses</p><p className="mt-1 text-sm font-bold text-rose-500">{formatCurrency(financialInsights.summary.monthlyExpense)}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground">Net savings</p><p className="mt-1 text-sm font-bold text-foreground">{formatCurrency(financialInsights.summary.netSavings)}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground">Savings rate</p><p className="mt-1 text-sm font-bold text-foreground">{financialInsights.summary.savingsRate === null ? '—' : `${financialInsights.summary.savingsRate.toFixed(1)}%`}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground">Top category</p><p className="mt-1 text-sm font-bold text-foreground">{financialInsights.summary.topCategory?.name ?? '—'}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground">Near / over budget</p><p className="mt-1 text-sm font-bold text-foreground">{financialInsights.summary.budgetsNearLimit} / {financialInsights.summary.budgetsExceeded}</p></div>
+                    </div>
+                  </div>
+                </>
+              )}
+              <p className="text-center text-[10px] text-muted-foreground">Spendze insights are informational and based on your recorded activity. They are not financial advice.</p>
             </div>
           )}
 
