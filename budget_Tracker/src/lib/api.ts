@@ -1,7 +1,7 @@
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/+$/, '');
 
 export class ApiError extends Error {
-  constructor(message: string, public fieldErrors: Record<string, string> = {}) {
+  constructor(message: string, public fieldErrors: Record<string, string> = {}, public status?: number) {
     super(message);
     this.name = 'ApiError';
   }
@@ -29,6 +29,25 @@ export interface TransactionData {
   icon: string;
 }
 
+export type TransactionWriteData = Omit<TransactionData, 'id'>;
+
+export interface BudgetData {
+  id: number | string;
+  category: string;
+  amount: number;
+  month: number;
+  year: number;
+  spent: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type BudgetWriteData = Pick<BudgetData, 'category' | 'amount' | 'month' | 'year'>;
+
+export interface UserProfileResponse {
+  user: User;
+}
+
 export interface TransactionsResponse {
   transactions: TransactionData[];
   message?: string;
@@ -50,7 +69,7 @@ const getHeaders = (): Record<string, string> => {
   return headers;
 };
 
-export const apiFetch = async <T = any>(endpoint: string, options: RequestInit = {}): Promise<T> => {
+export const apiFetch = async <T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> => {
   const url = `${API_BASE_URL}${endpoint}`;
   const config: RequestInit = {
     ...options,
@@ -62,27 +81,32 @@ export const apiFetch = async <T = any>(endpoint: string, options: RequestInit =
 
   try {
     const response = await fetch(url, config);
-    const data = await response.json();
+    const data = await response.json().catch((error: unknown) => {
+      // Preserve HTTP failures even when a proxy/server returns a non-JSON body.
+      if (!response.ok) throw new ApiError('An error occurred with the request', {}, response.status);
+      throw error;
+    });
 
     if (!response.ok) {
       const fieldErrors: Record<string, string> = {};
-      if (Array.isArray(data.errors)) {
+      if (Array.isArray(data?.errors)) {
         for (const error of data.errors) {
-          if (typeof error.field === 'string' && typeof error.message === 'string') {
+          if (typeof error?.field === 'string' && typeof error?.message === 'string') {
             fieldErrors[error.field] = error.message;
           }
         }
       }
       const details = Object.entries(fieldErrors).map(([field, message]) => `${field}: ${message}`);
       throw new ApiError(
-        [data.message || 'An error occurred with the request', ...details].join('. '),
+        [data?.message || 'An error occurred with the request', ...details].join('. '),
         fieldErrors,
+        response.status,
       );
     }
 
     return data as T;
-  } catch (error: any) {
-    console.warn(`API Error [${endpoint}]:`, error.message);
+  } catch (error: unknown) {
+    console.warn(`API Error [${endpoint}]:`, error instanceof Error ? error.message : 'Unknown API error');
     throw error;
   }
 };
@@ -98,18 +122,34 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(credentials),
     }),
-  getMe: (): Promise<AuthResponse> => apiFetch<AuthResponse>('/auth/me'),
+  getMe: (): Promise<UserProfileResponse> => apiFetch<UserProfileResponse>('/auth/me'),
 };
 
 export const transactionApi = {
   getAll: (): Promise<TransactionsResponse> => apiFetch<TransactionsResponse>('/transactions'),
-  create: (txData: TransactionData): Promise<SingleTransactionResponse> =>
+  create: (txData: TransactionWriteData): Promise<SingleTransactionResponse> =>
     apiFetch<SingleTransactionResponse>('/transactions', {
       method: 'POST',
+      body: JSON.stringify(txData),
+    }),
+  update: (id: string | number, txData: TransactionWriteData): Promise<SingleTransactionResponse> =>
+    apiFetch<SingleTransactionResponse>(`/transactions/${id}`, {
+      method: 'PUT',
       body: JSON.stringify(txData),
     }),
   delete: (id: string | number): Promise<{ message?: string }> =>
     apiFetch<{ message?: string }>(`/transactions/${id}`, {
       method: 'DELETE',
     }),
+};
+
+export const budgetApi = {
+  getAll: (month: number, year: number): Promise<{ budgets: BudgetData[] }> =>
+    apiFetch<{ budgets: BudgetData[] }>(`/budgets?month=${month}&year=${year}`),
+  create: (data: BudgetWriteData): Promise<{ budget: BudgetData }> =>
+    apiFetch<{ budget: BudgetData }>('/budgets', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string | number, data: BudgetWriteData): Promise<{ budget: BudgetData }> =>
+    apiFetch<{ budget: BudgetData }>(`/budgets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string | number): Promise<{ message: string; id: number }> =>
+    apiFetch<{ message: string; id: number }>(`/budgets/${id}`, { method: 'DELETE' }),
 };

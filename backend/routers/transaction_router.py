@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from database import db_connection
 from schemas import (
     TransactionCreate,
+    TransactionUpdate,
     TransactionResponse,
     TransactionListResponse,
     TransactionOut,
@@ -74,6 +75,61 @@ def add_transaction(data: TransactionCreate, current_user: dict = Depends(get_cu
     )
     
     return {"transaction": created_tx}
+
+@router.put("/{tx_id}", response_model=TransactionResponse)
+def update_transaction(
+    tx_id: int,
+    data: TransactionUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user.get("id")
+    tx_date = data.date.isoformat() if data.date else datetime.now().date().isoformat()
+    tx_icon = data.icon or ("💸" if data.amount < 0 else "💰")
+
+    with db_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM transactions WHERE id = ? AND user_id = ?",
+            (tx_id, user_id),
+        ).fetchone()
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"message": "Transaction not found or unauthorized"},
+            )
+
+        conn.execute(
+            """UPDATE transactions
+               SET name = ?, category = ?, amount = ?, date = ?, status = ?, icon = ?
+               WHERE id = ? AND user_id = ?""",
+            (
+                data.name,
+                data.category,
+                data.amount,
+                tx_date,
+                data.status,
+                tx_icon,
+                tx_id,
+                user_id,
+            ),
+        )
+        row = conn.execute(
+            "SELECT * FROM transactions WHERE id = ? AND user_id = ?",
+            (tx_id, user_id),
+        ).fetchone()
+
+    return {
+        "transaction": TransactionOut(
+            id=row["id"],
+            user_id=row["user_id"],
+            name=row["name"],
+            category=row["category"],
+            amount=row["amount"],
+            date=row["date"],
+            status=row["status"] or "Completed",
+            icon=row["icon"] or ("💸" if row["amount"] < 0 else "💰"),
+            created_at=str(row["created_at"]) if row["created_at"] else "",
+        )
+    }
 
 @router.delete("/{tx_id}", response_model=DeleteResponse)
 def delete_transaction(tx_id: int, current_user: dict = Depends(get_current_user)):

@@ -10,7 +10,7 @@ function LoginRoute() {
     <AuthPage
       initialMode="login"
       onBackToHome={() => navigate('/')}
-      onSuccess={() => navigate('/')}
+      onSuccess={() => navigate('/dashboard', { replace: true })}
       onRequestSignup={() => navigate('/register')}
     />
   );
@@ -20,6 +20,7 @@ export default function RootRouter() {
   return (
     <Routes>
       <Route path="/" element={<App />} />
+      <Route path="/dashboard" element={<App />} />
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />

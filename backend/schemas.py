@@ -51,6 +51,9 @@ class TransactionCreate(BaseModel):
             return cls.model_fields[info.field_name].default
         return value
 
+class TransactionUpdate(TransactionCreate):
+    pass
+
 class TransactionOut(BaseModel):
     id: int
     user_id: int
@@ -71,3 +74,35 @@ class TransactionListResponse(BaseModel):
 class DeleteResponse(BaseModel):
     message: str
     id: int
+
+
+class BudgetCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    category: str = Field(min_length=1, max_length=60)
+    amount: float = Field(gt=0, le=1_000_000_000, allow_inf_nan=False)
+    month: int = Field(ge=1, le=12)
+    year: int = Field(ge=2000, le=2200)
+
+
+class BudgetUpdate(BudgetCreate):
+    pass
+
+
+class BudgetOut(BaseModel):
+    id: int
+    user_id: int
+    category: str
+    amount: float
+    month: int
+    year: int
+    spent: float
+    created_at: str
+    updated_at: str
+
+
+class BudgetResponse(BaseModel):
+    budget: BudgetOut
+
+
+class BudgetListResponse(BaseModel):
+    budgets: List[BudgetOut]

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import DashboardLayout from './components/DashboardLayout';
 import HeroSectionDemo from '@/components/ui/demo';
 import TextAnimation from '@/components/ui/staggerText';
+import { useAuth } from './context/AuthContext';
 import { 
   FeaturesSection, 
   HowItWorksSection, 
@@ -21,8 +22,30 @@ type ViewMode = 'landing' | 'dashboard' | 'pricing';
 
 function App() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthenticated, loading: authLoading, logout } = useAuth();
   const [mode, setMode] = useState<'light' | 'dark'>('light'); // default to light mode
-  const [viewMode, setViewMode] = useState<ViewMode>('landing');
+  const routeViewMode =
+    location.state && typeof location.state === 'object' && 'viewMode' in location.state
+      ? location.state.viewMode
+      : undefined;
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    location.pathname === '/dashboard' || routeViewMode === 'dashboard' ? 'dashboard' : 'landing'
+  );
+
+  useEffect(() => {
+    if (location.pathname === '/dashboard') {
+      setViewMode('dashboard');
+    } else if (routeViewMode === 'dashboard' || routeViewMode === 'landing') {
+      setViewMode(routeViewMode);
+    }
+  }, [location.pathname, routeViewMode]);
+
+  useEffect(() => {
+    if (viewMode === 'dashboard' && !authLoading && !isAuthenticated) {
+      navigate('/login', { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate, viewMode]);
 
   useEffect(() => {
     if (mode === 'dark') {
@@ -42,8 +65,7 @@ function App() {
 
   const handleSelectSection = (href: string) => {
     if (href === '#dashboard') {
-      setViewMode('dashboard');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      navigate(isAuthenticated ? '/dashboard' : '/login');
       return;
     }
 
@@ -76,13 +98,23 @@ function App() {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    setViewMode('landing');
+    navigate('/', { replace: true });
+  };
+
   // Dashboard View
   if (viewMode === 'dashboard') {
+    if (authLoading || !isAuthenticated) {
+      return <div className="h-screen w-full bg-background animate-pulse" aria-label="Loading dashboard" />;
+    }
+
     return (
       <DashboardLayout
         mode={mode}
         onToggleMode={toggleMode}
-        onExitDashboard={() => setViewMode('landing')}
+        onExitDashboard={handleLogout}
       />
     );
   }
@@ -103,7 +135,7 @@ function App() {
             mode={mode}
             onToggleMode={toggleMode}
             onOpenAuth={handleOpenAuth}
-            onOpenDashboard={() => setViewMode('dashboard')}
+            onOpenDashboard={() => navigate(isAuthenticated ? '/dashboard' : '/login')}
             onSelectSection={handleSelectSection}
             activeLinkOverride="#pricing"
           />
@@ -155,7 +187,7 @@ function App() {
         mode={mode}
         onToggleMode={toggleMode}
         onOpenAuth={handleOpenAuth}
-        onOpenDashboard={() => setViewMode('dashboard')}
+        onOpenDashboard={() => navigate(isAuthenticated ? '/dashboard' : '/login')}
         onSelectSection={handleSelectSection}
       />
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, 
   CreditCard, 
@@ -53,6 +54,15 @@ export default function Sidebar({
   onToggleMode,
   onExitDashboard
 }: SidebarProps) {
+  const { user } = useAuth();
+  const userName = user?.name.trim() || 'User';
+  const initials = userName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || 'U';
+
   return (
     <aside 
       className={`relative flex flex-col h-screen bg-card border-r border-border transition-all duration-300 z-30 select-none ${
@@ -177,12 +187,12 @@ export default function Sidebar({
         <div className={`flex items-center gap-3 p-2 rounded-xl bg-muted/40 ${collapsed ? 'justify-center' : 'justify-between'}`}>
           <div className="flex items-center gap-2.5 overflow-hidden">
             <div className="h-8 w-8 rounded-lg bg-violet-600/20 text-violet-500 flex items-center justify-center font-bold text-xs shrink-0 border border-violet-500/30">
-              AM
+              {initials}
             </div>
             {!collapsed && (
               <div className="flex flex-col truncate">
-                <span className="text-xs font-bold text-foreground truncate">Alex Morgan</span>
-                <span className="text-[10px] text-muted-foreground truncate">Pro Member</span>
+                <span className="text-xs font-bold text-foreground truncate">{userName}</span>
+                <span className="text-[10px] text-muted-foreground truncate">Free Member</span>
               </div>
             )}
           </div>
@@ -191,7 +201,7 @@ export default function Sidebar({
             <button
               onClick={onExitDashboard}
               className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-              title="Return to Home Landing"
+              title="Log out"
             >
               <LogOut className="h-4 w-4" />
             </button>

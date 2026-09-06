@@ -30,8 +30,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         try {
           const res = await authApi.getMe();
           setUser(res.user);
-        } catch (err: any) {
-          console.warn('Session expired or invalid token:', err.message);
+        } catch (error: unknown) {
+          console.warn(
+            'Session expired or invalid token:',
+            error instanceof Error ? error.message : 'Unknown authentication error',
+          );
           logout();
         }
       }

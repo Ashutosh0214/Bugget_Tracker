@@ -11,6 +11,20 @@ def test_health_check(client):
     assert response.json()["status"] == "ok"
 
 
+def test_cors_preflight_allows_transaction_updates(client):
+    response = client.options(
+        "/api/transactions/1",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "PUT",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "PUT" in response.headers["access-control-allow-methods"]
+
+
 def test_signup_login_and_profile(client):
     signup = create_user(client)
     profile = client.get("/api/auth/me", headers=auth_headers(signup["token"]))
@@ -76,6 +90,45 @@ def test_transactions_are_isolated_per_user(client):
         f"/api/transactions/{transaction_id}", headers=auth_headers(first["token"])
     )
     assert owner_delete.status_code == 200
+
+
+def test_transaction_update_is_persistent_and_owner_scoped(client):
+    owner = create_user(client, "update-owner")
+    other = create_user(client, "update-other")
+    created = client.post(
+        "/api/transactions",
+        headers=auth_headers(owner["token"]),
+        json={"name": "grocery", "category": "Groceries", "amount": -500, "date": "2026-09-05"},
+    )
+    assert created.status_code == 201
+    transaction_id = created.json()["transaction"]["id"]
+    update_payload = {
+        "name": "grocery",
+        "category": "Groceries",
+        "amount": -700,
+        "date": "2026-09-05",
+        "status": "Completed",
+        "icon": "💸",
+    }
+
+    forbidden_update = client.put(
+        f"/api/transactions/{transaction_id}",
+        headers=auth_headers(other["token"]),
+        json=update_payload,
+    )
+    assert forbidden_update.status_code == 404
+
+    owner_update = client.put(
+        f"/api/transactions/{transaction_id}",
+        headers=auth_headers(owner["token"]),
+        json=update_payload,
+    )
+    assert owner_update.status_code == 200
+    assert owner_update.json()["transaction"]["amount"] == -700
+
+    persisted = client.get("/api/transactions", headers=auth_headers(owner["token"]))
+    assert persisted.status_code == 200
+    assert persisted.json()["transactions"][0]["amount"] == -700
 
 
 def test_authentication_is_required(client):
