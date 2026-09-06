@@ -1,6 +1,6 @@
 from datetime import date as Date
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
-from typing import Optional, List
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from typing import Optional, List, Literal
 
 class UserSignup(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
@@ -64,12 +64,44 @@ class TransactionOut(BaseModel):
     status: str
     icon: str
     created_at: str
+    source: str = "manual"
 
 class TransactionResponse(BaseModel):
     transaction: TransactionOut
 
 class TransactionListResponse(BaseModel):
     transactions: List[TransactionOut]
+
+
+class MonthlySetupTransaction(TransactionCreate):
+    date: Date
+
+    @field_validator("amount")
+    @classmethod
+    def amount_must_be_non_zero(cls, value: float) -> float:
+        if value == 0:
+            raise ValueError("Monthly setup transaction amount must be non-zero")
+        return value
+
+
+class BulkTransactionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    month: int = Field(ge=1, le=12)
+    year: int = Field(ge=2000, le=2200)
+    transactions: List[MonthlySetupTransaction] = Field(min_length=1, max_length=30)
+    allow_duplicates: bool = False
+
+    @model_validator(mode="after")
+    def transaction_dates_match_period(self):
+        if any(item.date.month != self.month or item.date.year != self.year for item in self.transactions):
+            raise ValueError("Every transaction date must match the selected month and year")
+        return self
+
+
+class BulkTransactionResponse(BaseModel):
+    transactions: List[TransactionOut]
+    count: int
+    message: str
 
 class DeleteResponse(BaseModel):
     message: str
@@ -106,3 +138,21 @@ class BudgetResponse(BaseModel):
 
 class BudgetListResponse(BaseModel):
     budgets: List[BudgetOut]
+
+
+class AIChatHistoryMessage(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class AIChatRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    message: str = Field(min_length=1, max_length=1000)
+    history: List[AIChatHistoryMessage] = Field(default_factory=list, max_length=10)
+
+
+class AIChatResponse(BaseModel):
+    reply: str
+    source: Literal["deterministic", "gemini", "fallback"]
+    forecast_warning: bool = False

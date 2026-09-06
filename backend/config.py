@@ -28,6 +28,8 @@ class Settings:
     jwt_expire_minutes: int
     cors_origins: tuple[str, ...]
     database_path: Path
+    gemini_api_key: str
+    gemini_model: str
 
     @property
     def is_production(self) -> bool:
@@ -64,4 +66,6 @@ def get_settings() -> Settings:
         jwt_expire_minutes=_positive_int("JWT_EXPIRE_MINUTES", 1440),
         cors_origins=origins,
         database_path=database_path.resolve(),
+        gemini_api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip() or "gemini-3.5-flash-lite",
     )

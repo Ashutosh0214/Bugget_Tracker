@@ -19,12 +19,13 @@ import {
 import './App.css';
 
 type ViewMode = 'landing' | 'dashboard' | 'pricing';
+const THEME_STORAGE_KEY = 'spendzy_theme';
 
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, loading: authLoading, logout } = useAuth();
-  const [mode, setMode] = useState<'light' | 'dark'>('light'); // default to light mode
+  const [mode, setMode] = useState<'light' | 'dark'>(() => localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light');
   const routeViewMode =
     location.state && typeof location.state === 'object' && 'viewMode' in location.state
       ? location.state.viewMode
@@ -53,6 +54,7 @@ function App() {
     } else {
       document.documentElement.classList.remove('dark');
     }
+    localStorage.setItem(THEME_STORAGE_KEY, mode);
   }, [mode]);
 
   const toggleMode = () => {
@@ -104,6 +106,11 @@ function App() {
     navigate('/', { replace: true });
   };
 
+  const handleReturnToLanding = () => {
+    setViewMode('landing');
+    navigate('/', { replace: true });
+  };
+
   // Dashboard View
   if (viewMode === 'dashboard') {
     if (authLoading || !isAuthenticated) {
@@ -115,6 +122,8 @@ function App() {
         mode={mode}
         onToggleMode={toggleMode}
         onExitDashboard={handleLogout}
+        onLogout={handleLogout}
+        onReturnToLanding={handleReturnToLanding}
       />
     );
   }

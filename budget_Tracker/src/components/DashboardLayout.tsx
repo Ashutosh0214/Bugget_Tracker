@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Sidebar from './sideBar';
 import CustomSelect from './ui/CustomSelect';
+import MonthlySetupModal from './MonthlySetupModal';
 import TextAnimation from '@/components/ui/staggerText';
 import { useAuth } from '../context/AuthContext';
-import { budgetApi, BudgetData, BudgetWriteData, transactionApi, TransactionData, TransactionWriteData } from '../lib/api';
+import { aiApi, budgetApi, BudgetData, BudgetWriteData, transactionApi, TransactionData, TransactionWriteData } from '../lib/api';
 import { generateFinancialInsights, InsightSeverity, InsightType } from '../lib/financialInsights';
+import { BudgetRisk, calculateFinancialForecast } from '../lib/financialForecast';
+import { answerFinancialQuestion, detectFinancialIntent } from '../lib/financialAssistant';
 
 import { 
   Search, 
@@ -22,12 +25,16 @@ import {
   Pencil,
   Trash2,
   X,
+  RotateCcw,
+  CalendarDays,
 } from 'lucide-react';
 
 export interface DashboardLayoutProps {
   mode?: 'light' | 'dark';
   onToggleMode?: () => void;
   onExitDashboard?: () => void;
+  onLogout?: () => void;
+  onReturnToLanding?: () => void;
 }
 
 export interface ChatMessage {
@@ -38,7 +45,44 @@ export interface ChatMessage {
 type CurrencyCode = 'INR' | 'USD' | 'EUR' | 'GBP';
 
 const CURRENCY_STORAGE_KEY = 'spendzy_currency';
+const DEFAULT_TRANSACTION_TYPE_KEY = 'spendzy_default_transaction_type';
+const AI_INSIGHTS_ENABLED_KEY = 'spendzy_ai_insights_enabled';
+const PREDICTIONS_ENABLED_KEY = 'spendzy_predictions_enabled';
+const BUDGET_WARNING_ENABLED_KEY = 'spendzy_budget_warning_enabled';
+const BUDGET_EXCEEDED_ENABLED_KEY = 'spendzy_budget_exceeded_enabled';
 const SUPPORTED_CURRENCIES: CurrencyCode[] = ['INR', 'USD', 'EUR', 'GBP'];
+const delay = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+const renderAssistantInline = (text: string) =>
+  text.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={index}>{part.slice(2, -2)}</strong>
+      : <React.Fragment key={index}>{part}</React.Fragment>,
+  );
+
+const renderAssistantText = (text: string) => text.split('\n').map((rawLine, index) => {
+  const line = rawLine.trimEnd();
+  const bullet = /^[-•]\s+(.+)$/.exec(line);
+  const numbered = /^\d+\.\s+(.+)$/.exec(line);
+  const heading = /^#{1,3}\s+(.+)$/.exec(line);
+  if (bullet || numbered) return <div key={index} className="flex gap-2 pl-1"><span aria-hidden="true">•</span><span>{renderAssistantInline((bullet || numbered)![1])}</span></div>;
+  if (heading) return <strong key={index} className="mt-1 block">{renderAssistantInline(heading[1])}</strong>;
+  if (!line) return <span key={index} className="block h-2" />;
+  return <span key={index} className="block">{renderAssistantInline(line)}</span>;
+});
+
+const getStoredBoolean = (key: string, fallback = true) => {
+  const stored = localStorage.getItem(key);
+  return stored === null ? fallback : stored === 'true';
+};
+
+function PreferenceToggle({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} className={`relative h-6 w-11 shrink-0 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 focus:ring-offset-background ${checked ? 'bg-violet-600' : 'bg-muted-foreground/30'}`}>
+      <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${checked ? 'left-6' : 'left-1'}`} />
+    </button>
+  );
+}
 const CURRENCY_LOCALES: Record<CurrencyCode, string> = {
   INR: 'en-IN',
   USD: 'en-US',
@@ -100,6 +144,17 @@ const EMPTY_TRANSACTION_FORM: TransactionFormState = {
   type: 'expense',
 };
 
+const getStoredDefaultTransactionType = (): TransactionFormState['type'] =>
+  localStorage.getItem(DEFAULT_TRANSACTION_TYPE_KEY) === 'income' ? 'income' : 'expense';
+
+const createNewTransactionForm = (
+  type: TransactionFormState['type'] = getStoredDefaultTransactionType(),
+): TransactionFormState => ({
+  ...EMPTY_TRANSACTION_FORM,
+  type,
+  category: type === 'income' ? 'Income' : 'Groceries',
+});
+
 const DEFAULT_CATEGORIES = [
   'Groceries',
   'Shopping',
@@ -138,7 +193,7 @@ const getBudgetStatus = (percent: number) => {
   return { label: 'Safe', bar: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' };
 };
 
-export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDashboard }: DashboardLayoutProps) {
+export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDashboard, onLogout, onReturnToLanding }: DashboardLayoutProps) {
   const { user, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
@@ -148,6 +203,13 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const [currency, setCurrency] = useState<CurrencyCode>(getInitialCurrency);
+  const [defaultTransactionType, setDefaultTransactionType] = useState<'expense' | 'income'>(getStoredDefaultTransactionType);
+  const [aiInsightsEnabled, setAiInsightsEnabled] = useState(() => getStoredBoolean(AI_INSIGHTS_ENABLED_KEY));
+  const [predictionsEnabled, setPredictionsEnabled] = useState(() => getStoredBoolean(PREDICTIONS_ENABLED_KEY));
+  const [budgetWarningEnabled, setBudgetWarningEnabled] = useState(() => getStoredBoolean(BUDGET_WARNING_ENABLED_KEY));
+  const [budgetExceededEnabled, setBudgetExceededEnabled] = useState(() => getStoredBoolean(BUDGET_EXCEEDED_ENABLED_KEY));
+  const [preferenceFeedback, setPreferenceFeedback] = useState('');
+  const preferenceFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currencyFormatter = useMemo(
     () => new Intl.NumberFormat(CURRENCY_LOCALES[currency], {
       style: 'currency',
@@ -163,13 +225,16 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
   
   // New Transaction Form State
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
-  const [newTx, setNewTx] = useState<TransactionFormState>(EMPTY_TRANSACTION_FORM);
+  const [newTx, setNewTx] = useState<TransactionFormState>(createNewTransactionForm);
   const [editingTransaction, setEditingTransaction] = useState<TransactionData | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<TransactionData | null>(null);
   const [openActionId, setOpenActionId] = useState<string | number | null>(null);
   const [transactionMutationError, setTransactionMutationError] = useState<string>('');
   const [isSavingTransaction, setIsSavingTransaction] = useState<boolean>(false);
   const [isDeletingTransaction, setIsDeletingTransaction] = useState<boolean>(false);
+  const [showMonthlySetup, setShowMonthlySetup] = useState(false);
+  const [monthlySetupFeedback, setMonthlySetupFeedback] = useState('');
+  const monthlySetupFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentDate = new Date();
   const [selectedBudgetMonth, setSelectedBudgetMonth] = useState(currentDate.getMonth() + 1);
   const [selectedBudgetYear, setSelectedBudgetYear] = useState(currentDate.getFullYear());
@@ -191,10 +256,12 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
   const userInitials = getInitials(user?.name);
 
   // AI Assistant Chat State
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { sender: 'ai', text: 'I am your Spendzy AI Assistant. Add transactions to unlock personalized financial insights.' }
-  ]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState<string>('');
+  const [chatThinking, setChatThinking] = useState(false);
+  const chatMessagesRef = useRef<HTMLDivElement>(null);
+  const chatSubmittingRef = useRef(false);
+  const chatSessionRef = useRef(0);
 
   // Fetch only the authenticated user's transactions from the existing API.
   useEffect(() => {
@@ -232,7 +299,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
 
   useEffect(() => {
     let cancelled = false;
-    if (!isAuthenticated || !['budgets', 'analytics', 'ai-insights'].includes(activeTab)) return;
+    if (!isAuthenticated || !['budgets', 'analytics', 'ai-insights', 'predictions', 'ai-assistant'].includes(activeTab)) return;
     setBudgetsLoading(true);
     setBudgetsError('');
     budgetApi.getAll(selectedBudgetMonth, selectedBudgetYear)
@@ -331,6 +398,22 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
     }
     return Array.from(categoryMap.values()).sort((first, second) => first.localeCompare(second));
   }, [transactions]);
+
+  const modalTransactionCategories = useMemo(() => {
+    const categoryMap = new Map<string, string>();
+    const defaultCategories = newTx.type === 'income'
+      ? ['Income']
+      : DEFAULT_CATEGORIES.filter((category) => category !== 'Income');
+
+    for (const category of defaultCategories) categoryMap.set(category.toLowerCase(), category);
+    for (const transaction of transactions) {
+      if (getTransactionType(transaction) !== newTx.type) continue;
+      const category = transaction.category.trim();
+      if (category) categoryMap.set(category.toLowerCase(), formatDisplayLabel(category));
+    }
+
+    return Array.from(categoryMap.values()).sort((first, second) => first.localeCompare(second));
+  }, [newTx.type, transactions]);
 
   const filteredTransactions = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -451,13 +534,55 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
     budget: '⚠️', spending: '📈', saving: '💰', category: '🧾', trend: '↗️',
   };
 
+  const forecast = useMemo(
+    () => calculateFinancialForecast(transactions, budgets, selectedBudgetMonth, selectedBudgetYear, currentDate),
+    [budgets, currentDate, selectedBudgetMonth, selectedBudgetYear, transactions],
+  );
+  const budgetRiskLabels: Record<BudgetRisk, string> = {
+    'on-track': 'On track', 'at-risk': 'At risk', 'likely-to-exceed': 'Likely to exceed', 'already-exceeded': 'Already exceeded',
+  };
+
   useEffect(() => {
     localStorage.setItem(CURRENCY_STORAGE_KEY, currency);
   }, [currency]);
 
+  useEffect(() => () => {
+    if (preferenceFeedbackTimerRef.current) clearTimeout(preferenceFeedbackTimerRef.current);
+    if (monthlySetupFeedbackTimerRef.current) clearTimeout(monthlySetupFeedbackTimerRef.current);
+  }, []);
+
+  const showPreferenceSaved = () => {
+    setPreferenceFeedback('Preference saved');
+    if (preferenceFeedbackTimerRef.current) clearTimeout(preferenceFeedbackTimerRef.current);
+    preferenceFeedbackTimerRef.current = setTimeout(() => setPreferenceFeedback(''), 1800);
+  };
+
+  const saveBooleanPreference = (key: string, value: boolean, setter: (value: boolean) => void) => {
+    localStorage.setItem(key, String(value));
+    setter(value);
+    showPreferenceSaved();
+  };
+
+  useEffect(() => {
+    const container = chatMessagesRef.current;
+    container?.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+  }, [chatMessages, chatThinking]);
+
+  const handleSelectTab = (tab: string) => {
+    if (tab === 'ai-assistant') {
+      setSelectedBudgetMonth(currentDate.getMonth() + 1);
+      setSelectedBudgetYear(currentDate.getFullYear());
+      setBudgets([]);
+      setBudgetsLoading(true);
+    }
+    setActiveTab(tab);
+  };
+
   const openAddTransaction = () => {
+    const preferredType = getStoredDefaultTransactionType();
     setEditingTransaction(null);
-    setNewTx(EMPTY_TRANSACTION_FORM);
+    setDefaultTransactionType(preferredType);
+    setNewTx(createNewTransactionForm(preferredType));
     setTransactionMutationError('');
     setOpenActionId(null);
     setShowAddModal(true);
@@ -476,11 +601,19 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
     setShowAddModal(true);
   };
 
+  useEffect(() => {
+    if (!showAddModal || editingTransaction) return;
+
+    const preferredType = getStoredDefaultTransactionType();
+    setDefaultTransactionType(preferredType);
+    setNewTx(createNewTransactionForm(preferredType));
+  }, [showAddModal, editingTransaction]);
+
   const closeTransactionModal = () => {
     if (isSavingTransaction) return;
     setShowAddModal(false);
     setEditingTransaction(null);
-    setNewTx(EMPTY_TRANSACTION_FORM);
+    setNewTx(createNewTransactionForm());
     setTransactionMutationError('');
   };
 
@@ -530,7 +663,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
 
     setShowAddModal(false);
     setEditingTransaction(null);
-    setNewTx(EMPTY_TRANSACTION_FORM);
+    setNewTx(createNewTransactionForm());
   };
 
   const handleDeleteTransaction = async () => {
@@ -548,6 +681,23 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
     } finally {
       setIsDeletingTransaction(false);
     }
+  };
+
+  const handleMonthlySetupSaved = (createdTransactions: TransactionData[], message: string) => {
+    setTransactions((current) => [...createdTransactions, ...current].sort((first, second) => {
+      const dateOrder = second.date.localeCompare(first.date);
+      if (dateOrder !== 0) return dateOrder;
+      return Number(second.id ?? 0) - Number(first.id ?? 0);
+    }));
+    setTransactionsError('');
+    setShowMonthlySetup(false);
+    setMonthlySetupFeedback(message);
+    if (monthlySetupFeedbackTimerRef.current) clearTimeout(monthlySetupFeedbackTimerRef.current);
+    monthlySetupFeedbackTimerRef.current = setTimeout(() => setMonthlySetupFeedback(''), 3500);
+
+    void budgetApi.getAll(selectedBudgetMonth, selectedBudgetYear)
+      .then((response) => setBudgets(Array.isArray(response.budgets) ? response.budgets : []))
+      .catch((error: unknown) => console.error('Failed to refresh budgets after monthly setup:', error));
   };
 
   const openCreateBudget = () => {
@@ -615,21 +765,61 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
     }
   };
 
+  const submitChatQuestion = async (question: string) => {
+    const normalizedQuestion = question.trim();
+    if (!normalizedQuestion || chatSubmittingRef.current || transactionsLoading || budgetsLoading) return;
+    const chatSession = chatSessionRef.current;
+    chatSubmittingRef.current = true;
+    setChatMessages((previous) => [...previous, { sender: 'user', text: normalizedQuestion }]);
+    setChatInput('');
+    setChatThinking(true);
+    const startedAt = Date.now();
+    try {
+      let answer: string;
+      if (transactionsError || budgetsError) {
+        answer = "I couldn't access your latest financial data. Please try again.";
+      } else {
+        const categories = Array.from(new Set([...transactions.map((item) => item.category), ...budgets.map((item) => item.category)].filter(Boolean)));
+        const detected = detectFinancialIntent(normalizedQuestion, categories);
+        const hasContextualReference = /\b(that category|same category|that budget|that expense|there|it)\b/i.test(normalizedQuestion);
+        if (detected.intent === 'unknown' || hasContextualReference) {
+          try {
+            const recentHistory = chatMessages.slice(-10).map((message) => ({
+              role: message.sender === 'ai' ? 'assistant' as const : 'user' as const,
+              content: message.text,
+            }));
+            answer = (await aiApi.chat(normalizedQuestion, recentHistory)).reply;
+          } catch (error: unknown) {
+            console.error('Conversational assistant request failed:', error);
+            answer = "Sorry, I couldn't process that request. Please try again.";
+          }
+        } else {
+          answer = answerFinancialQuestion(normalizedQuestion, transactions, budgets, currentDate, formatCurrency);
+        }
+      }
+      const remainingDelay = Math.max(0, 250 - (Date.now() - startedAt));
+      if (remainingDelay > 0) await delay(remainingDelay);
+      if (chatSession !== chatSessionRef.current) return;
+      setChatMessages((previous) => [...previous, { sender: 'ai', text: answer }]);
+    } finally {
+      if (chatSession === chatSessionRef.current) {
+        setChatThinking(false);
+        chatSubmittingRef.current = false;
+      }
+    }
+  };
+
+  const handleNewChat = () => {
+    chatSessionRef.current += 1;
+    chatSubmittingRef.current = false;
+    setChatMessages([]);
+    setChatInput('');
+    setChatThinking(false);
+  };
+
   const handleSendChatMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
-
-    const userMsg: ChatMessage = { sender: 'user', text: chatInput };
-    setChatMessages((prev) => [...prev, userMsg]);
-    setChatInput('');
-
-    // Real AI analysis is not connected yet, so never invent financial advice.
-    setTimeout(() => {
-      const aiText = transactions.length === 0
-        ? 'Add some transactions to unlock personalized insights.'
-        : 'Personalized AI analysis is not available yet. Your dashboard totals are calculated from your saved transactions.';
-      setChatMessages((prev) => [...prev, { sender: 'ai', text: aiText }]);
-    }, 800);
+    submitChatQuestion(chatInput);
   };
 
   return (
@@ -637,7 +827,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
       {/* Left Sidebar */}
       <Sidebar 
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={handleSelectTab}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         mode={mode}
@@ -663,14 +853,24 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Quick Action Button */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setShowMonthlySetup(true)}
+              className="flex items-center gap-2 rounded-xl border border-violet-500/25 bg-violet-500/5 px-3 py-2 text-xs font-semibold text-violet-600 transition-colors hover:bg-violet-500/10 dark:text-violet-300"
+              aria-label="Open Monthly Financial Setup"
+            >
+              <CalendarDays className="h-4 w-4" />
+              <span className="hidden md:inline">Quick Setup</span>
+            </button>
+
+            {/* Single Transaction Action */}
             <button
               onClick={openAddTransaction}
               className="flex items-center gap-2 rounded-xl bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-violet-600/30 hover:bg-violet-700 transition-all cursor-pointer"
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Expense</span>
+              <span className="hidden sm:inline">Add Transaction</span>
             </button>
 
             {/* Notification Bell */}
@@ -1316,7 +1516,9 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                 </div>
               </div>
 
-              {transactionsLoading || budgetsLoading ? (
+              {!aiInsightsEnabled ? (
+                <div className="rounded-3xl border border-dashed border-border bg-card p-12 text-center shadow-sm"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-500"><Sparkles className="h-5 w-5" /></div><h2 className="mt-4 font-bold text-foreground">Personalized AI Insights are disabled</h2><p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">Enable this preference in Settings when you want Spendzy to generate insights from your recorded financial activity.</p><button type="button" onClick={() => setActiveTab('settings')} className="mt-5 rounded-xl border border-violet-500/25 px-4 py-2.5 text-xs font-bold text-violet-500 hover:bg-violet-500/10">Open Settings</button></div>
+              ) : transactionsLoading || budgetsLoading ? (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="h-40 animate-pulse rounded-3xl bg-muted" /><div className="h-40 animate-pulse rounded-3xl bg-muted" /></div>
               ) : transactionsError ? (
                 <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">Unable to load financial insights because transactions could not be loaded.</div>
@@ -1372,19 +1574,49 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
           {/* TAB 6: PREDICTIONS */}
           {activeTab === 'predictions' && (
             <div className="space-y-6 animate-in fade-in duration-300">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">🔮 Predictive Forecasting</h1>
-                <p className="text-xs text-muted-foreground">AI-driven projections for your balance at month end</p>
-              </div>
-
-              <div className="p-8 rounded-3xl border border-border bg-card shadow-sm space-y-6 text-center">
-                <div className="max-w-md mx-auto space-y-2">
-                  <span className="text-xs font-semibold text-violet-500 uppercase tracking-widest bg-violet-500/10 px-3 py-1 rounded-full border border-violet-500/20">
-                    Forecast unavailable
-                  </span>
-                  <p className="text-xs text-muted-foreground">Predictions will appear when a real forecasting service is connected.</p>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div><h1 className="text-2xl font-bold tracking-tight text-foreground">🔮 Predictive Forecasting</h1><p className="text-xs text-muted-foreground">Data-driven projections based on your recorded financial activity</p></div>
+                <div className="flex gap-2">
+                  <select value={selectedBudgetMonth} onChange={(event) => setSelectedBudgetMonth(Number(event.target.value))} className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground outline-none focus:ring-2 focus:ring-violet-500">{MONTH_NAMES.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select>
+                  <select value={selectedBudgetYear} onChange={(event) => setSelectedBudgetYear(Number(event.target.value))} className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground outline-none focus:ring-2 focus:ring-violet-500">{Array.from({ length: 5 }, (_, index) => currentDate.getFullYear() - 2 + index).map((year) => <option key={year} value={year}>{year}</option>)}</select>
                 </div>
               </div>
+
+              {!predictionsEnabled ? (
+                <div className="rounded-3xl border border-dashed border-border bg-card p-12 text-center shadow-sm"><h2 className="font-bold text-foreground">Predictive Forecasting is disabled</h2><p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">Enable forecasting in Settings to view projections based on your recorded activity.</p><button type="button" onClick={() => setActiveTab('settings')} className="mt-5 rounded-xl border border-violet-500/25 px-4 py-2.5 text-xs font-bold text-violet-500 hover:bg-violet-500/10">Open Settings</button></div>
+              ) : transactionsLoading || budgetsLoading ? (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-28 animate-pulse rounded-3xl bg-muted" />)}</div>
+              ) : transactionsError ? (
+                <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">Unable to calculate forecasts because transactions could not be loaded.</div>
+              ) : !forecast.isCurrentMonth ? (
+                <div className="rounded-3xl border border-border bg-card p-10 text-center shadow-sm">
+                  <p className="font-bold text-foreground">{forecast.isPastMonth ? 'This month is complete' : 'Forecasting is not available for a future month'}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{forecast.isPastMonth ? `Forecasting is available for the current month. Actual recorded spending for this period was ${formatCurrency(forecast.currentExpense)}.` : 'Select the current month to build a projection from recorded activity.'}</p>
+                </div>
+              ) : !forecast.hasForecastData ? (
+                <div className="rounded-3xl border border-dashed border-border bg-card p-12 text-center shadow-sm"><h2 className="font-bold text-foreground">Not enough data to forecast yet</h2><p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">Add several expense transactions throughout the month to start building spending projections.</p><button type="button" onClick={openAddTransaction} className="mt-5 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-violet-700">Add Transaction</button></div>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-3 rounded-3xl border border-violet-500/25 bg-violet-500/5 p-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Forecast confidence</p><p className="mt-1 text-lg font-extrabold uppercase text-foreground">{forecast.confidence}</p><p className="mt-1 text-xs text-muted-foreground">{forecast.confidenceReason}</p></div><div className="shrink-0 text-left sm:text-right"><p className="text-xs font-semibold text-foreground">{forecast.daysElapsed} days elapsed</p><p className="text-xs text-muted-foreground">{forecast.daysRemaining} days remaining</p></div></div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-3xl border border-border bg-card p-5 shadow-sm"><p className="text-xs text-muted-foreground">Projected Spending</p><p className="mt-2 text-xl font-extrabold text-rose-500">{formatCurrency(forecast.projectedExpense)}</p><p className="mt-1 text-[10px] text-muted-foreground">Current: {formatCurrency(forecast.currentExpense)}</p></div>
+                    <div className="rounded-3xl border border-border bg-card p-5 shadow-sm"><p className="text-xs text-muted-foreground">Projected Income</p><p className="mt-2 text-xl font-extrabold text-emerald-500">{formatCurrency(forecast.projectedIncome)}</p><p className="mt-1 text-[10px] text-muted-foreground">Based only on income recorded so far</p></div>
+                    <div className="rounded-3xl border border-border bg-card p-5 shadow-sm"><p className="text-xs text-muted-foreground">Projected Net Savings</p><p className={`mt-2 text-xl font-extrabold ${forecast.projectedSavings >= 0 ? 'text-violet-500' : 'text-rose-500'}`}>{formatCurrency(forecast.projectedSavings)}</p><p className="mt-1 text-[10px] text-muted-foreground">Estimated income minus spending</p></div>
+                    <div className="rounded-3xl border border-border bg-card p-5 shadow-sm"><p className="text-xs text-muted-foreground">Projected Savings Rate</p><p className="mt-2 text-xl font-extrabold text-indigo-500">{forecast.projectedSavingsRate === null ? '—' : `${forecast.projectedSavingsRate.toFixed(1)}%`}</p><p className="mt-1 text-[10px] text-muted-foreground">Requires recorded income</p></div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <div className="rounded-3xl border border-border bg-card p-6 shadow-sm"><h2 className="text-sm font-bold text-foreground">Spending Pace</h2><div className="mt-5 space-y-3 text-xs">{[['Current spending', formatCurrency(forecast.currentExpense)], ['Average daily spending', `${formatCurrency(forecast.averageDailyExpense)}/day`], ['Days elapsed', String(forecast.daysElapsed)], ['Days remaining', String(forecast.daysRemaining)], ['Projected remaining', formatCurrency(Math.max(0, forecast.projectedExpense - forecast.currentExpense))]].map(([label, value]) => <div key={label} className="flex justify-between gap-3 border-b border-border/60 pb-2"><span className="text-muted-foreground">{label}</span><span className="font-bold text-foreground">{value}</span></div>)}</div><p className="mt-4 text-[10px] text-muted-foreground">Based on your current average daily spending pace.</p></div>
+                    <div className="rounded-3xl border border-border bg-card p-6 shadow-sm"><h2 className="text-sm font-bold text-foreground">Current vs Projected Spending</h2><div className="mt-6 space-y-4">{[['Current', forecast.currentExpense, 'bg-violet-400'], ['Projected', forecast.projectedExpense, 'bg-rose-500'], ['Recorded income', forecast.recordedIncome, 'bg-emerald-500']].map(([label, amount, color]) => { const value = Number(amount); const maximum = Math.max(forecast.projectedExpense, forecast.recordedIncome, 1); return <div key={String(label)}><div className="mb-1 flex justify-between text-xs"><span className="text-muted-foreground">{label}</span><span className="font-bold text-foreground">{formatCurrency(value)}</span></div><div className="h-3 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${color}`} style={{ width: `${(value / maximum) * 100}%` }} /></div></div>; })}</div>{forecast.recentMonthlyAverage !== null && <p className="mt-5 text-[10px] text-muted-foreground">Recent monthly average: {formatCurrency(forecast.recentMonthlyAverage)} from {forecast.historicalMonthsUsed} available prior {forecast.historicalMonthsUsed === 1 ? 'month' : 'months'}.</p>}</div>
+                  </div>
+
+                  <div className="rounded-3xl border border-border bg-card p-6 shadow-sm"><h2 className="text-sm font-bold text-foreground">Category & Budget Forecasts</h2><p className="mt-1 text-[10px] text-muted-foreground">Projected based on current spending pace.</p><div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">{forecast.categoryForecasts.map((category) => <div key={category.category} className="rounded-2xl border border-border bg-muted/20 p-4"><div className="flex items-start justify-between gap-3"><p className="text-sm font-bold text-foreground">{category.category}</p>{category.risk && <span className={`rounded-full px-2 py-1 text-[9px] font-bold uppercase ${category.risk === 'on-track' ? 'bg-emerald-500/10 text-emerald-500' : category.risk === 'at-risk' ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'}`}>{budgetRiskLabels[category.risk]}</span>}</div><div className="mt-3 grid grid-cols-3 gap-2 text-[10px]"><div><p className="text-muted-foreground">Current</p><p className="font-bold text-foreground">{formatCurrency(category.current)}</p></div><div><p className="text-muted-foreground">Projected</p><p className="font-bold text-foreground">{formatCurrency(category.projected)}</p></div><div><p className="text-muted-foreground">Budget</p><p className="font-bold text-foreground">{category.budget === undefined ? '—' : formatCurrency(category.budget)}</p></div></div>{category.budget !== undefined && <p className="mt-3 border-t border-border pt-3 text-[10px] text-muted-foreground">{category.risk === 'already-exceeded' ? 'This budget has already been exceeded.' : `To stay within budget, average no more than approximately ${formatCurrency(category.safeDailySpend ?? 0)}/day for the rest of the month.`}</p>}</div>)}</div></div>
+
+                  <div className="rounded-3xl border border-border bg-card p-5 shadow-sm"><h2 className="text-sm font-bold text-foreground">How this forecast is calculated</h2><p className="mt-2 text-xs leading-relaxed text-muted-foreground">Spendze estimates month-end expenses from your average daily spending recorded so far. Income projections use recorded income and do not assume future deposits. Confidence reflects activity days, transaction volume, and available history—not a random score. Early-month projections can change substantially.</p></div>
+                </>
+              )}
+              <p className="text-center text-[10px] text-muted-foreground">Forecasts are estimates based on recorded activity and may differ from actual future spending. They are not financial advice.</p>
             </div>
           )}
 
@@ -1392,21 +1624,28 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
           {activeTab === 'ai-assistant' && (
             <div className="h-[calc(100vh-8rem)] flex flex-col rounded-3xl border border-border bg-card shadow-sm overflow-hidden animate-in fade-in duration-300">
               {/* Header */}
-              <div className="p-4 border-b border-border bg-muted/30 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white flex items-center justify-center shadow-md">
-                  <Bot className="h-5 w-5" />
+              <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/30 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-md"><Bot className="h-5 w-5" /></div>
+                  <div>
+                    <h2 className="text-sm font-bold text-foreground">Spendzy AI Assistant</h2>
+                    <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-500"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />Active & ready</span>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-sm font-bold text-foreground">Spendzy AI Assistant</h2>
-                  <span className="text-[11px] text-emerald-500 font-medium flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Active & ready
-                  </span>
-                </div>
+                <button type="button" onClick={handleNewChat} className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-[10px] font-semibold text-muted-foreground transition-colors hover:border-violet-500/30 hover:text-violet-500" aria-label="Start a new chat"><RotateCcw className="h-3.5 w-3.5" />New Chat</button>
               </div>
 
               {/* Message List */}
-              <div className="flex-1 p-6 overflow-y-auto space-y-4">
+              <div ref={chatMessagesRef} className="flex-1 space-y-4 overflow-y-auto p-6">
+                {chatMessages.length === 0 && (
+                  <>
+                    <div className="flex items-start gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs">🤖</div><div className="max-w-md rounded-2xl rounded-tl-none border border-border bg-muted/80 p-4 text-xs leading-relaxed text-foreground">{transactions.length > 0 ? 'Hi! I can help you understand your spending, income, budgets, and forecasts. What would you like to know?' : 'Add your first transaction and I’ll help you understand your financial activity.'}</div></div>
+                    <p className="pl-11 text-[11px] text-muted-foreground">Ask Spendzy about your spending, budgets, savings, or financial trends.</p>
+                    <div className="flex flex-wrap gap-2 pl-11">
+                      {['Give me a financial summary', 'Where am I spending the most?', 'Check my budgets', "Predict this month's spending"].map((suggestion) => <button key={suggestion} type="button" onClick={() => submitChatQuestion(suggestion)} disabled={transactionsLoading || budgetsLoading} className="rounded-full border border-violet-500/25 bg-violet-500/5 px-3 py-2 text-[10px] font-semibold text-violet-500 hover:bg-violet-500/10 disabled:cursor-not-allowed disabled:opacity-50">{suggestion}</button>)}
+                    </div>
+                  </>
+                )}
                 {chatMessages.map((msg, idx) => (
                   <div 
                     key={idx}
@@ -1419,29 +1658,32 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                     }`}>
                       {msg.sender === 'user' ? userInitials : '🤖'}
                     </div>
-                    <div className={`p-4 rounded-2xl max-w-md text-xs leading-relaxed ${
+                    <div className={`max-w-md whitespace-pre-line rounded-2xl p-4 text-xs leading-relaxed ${
                       msg.sender === 'user'
                         ? 'bg-violet-600 text-white rounded-tr-none shadow-md'
                         : 'bg-muted/80 text-foreground border border-border rounded-tl-none'
                     }`}>
-                      {msg.text}
+                      {msg.sender === 'ai' ? renderAssistantText(msg.text) : msg.text}
                     </div>
                   </div>
                 ))}
+                {chatThinking && <div className="flex items-start gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs">🤖</div><div className="flex items-center gap-1.5 rounded-2xl rounded-tl-none border border-border bg-muted/80 px-4 py-3" aria-label="Spendzy is typing"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" /><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" style={{ animationDelay: '100ms' }} /><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" style={{ animationDelay: '200ms' }} /></div></div>}
               </div>
 
               {/* Chat Input */}
               <form onSubmit={handleSendChatMessage} className="p-4 border-t border-border bg-card flex gap-2">
-                <input
-                  type="text"
+                <textarea
+                  rows={1}
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatQuestion(chatInput); } }}
                   placeholder="Ask Spendzy AI anything about your money flow..."
-                  className="flex-1 rounded-xl border border-border bg-muted/40 px-4 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+                  className="max-h-24 flex-1 resize-none rounded-xl border border-border bg-muted/40 px-4 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-xs font-bold shadow-md hover:bg-violet-700 transition-colors flex items-center gap-2 cursor-pointer"
+                  disabled={!chatInput.trim() || chatThinking || transactionsLoading || budgetsLoading}
+                  className="flex cursor-pointer items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-md transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>Send</span>
                   <Send className="h-3.5 w-3.5" />
@@ -1452,62 +1694,79 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
 
           {/* TAB 8: SETTINGS */}
           {activeTab === 'settings' && (
-            <div className="space-y-6 max-w-3xl animate-in fade-in duration-300">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">⚙ Settings & Preferences</h1>
-                <p className="text-xs text-muted-foreground">Manage your Spendzy dashboard configuration</p>
+            <div className="space-y-6 animate-in fade-in duration-300">
+              <div className="flex items-end justify-between gap-4">
+                <div><h1 className="text-2xl font-bold tracking-tight text-foreground">⚙️ Settings & Preferences</h1><p className="text-xs text-muted-foreground">Manage your Spendzy account and preferences</p></div>
+                <p aria-live="polite" className={`text-xs font-semibold text-emerald-500 transition-opacity ${preferenceFeedback ? 'opacity-100' : 'opacity-0'}`}>{preferenceFeedback || 'Preference saved'}</p>
               </div>
 
-              <div className="p-6 rounded-3xl border border-border bg-card shadow-sm space-y-6">
-                <div className="flex items-center justify-between border-b border-border pb-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-foreground">Theme Mode</h3>
-                    <p className="text-xs text-muted-foreground">Toggle between Light and Dark interface mode</p>
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                  <div className="mb-5"><h2 className="text-sm font-bold text-foreground">👤 Profile</h2><p className="mt-1 text-xs text-muted-foreground">Your authenticated Spendzy account information</p></div>
+                  <div className="space-y-4">
+                    <div><label htmlFor="settings-name" className="mb-1.5 block text-xs font-semibold text-muted-foreground">Full Name</label><input id="settings-name" value={user?.name ?? ''} readOnly className="w-full rounded-xl border border-border bg-muted/40 px-3.5 py-2.5 text-xs text-foreground outline-none" /></div>
+                    <div><label htmlFor="settings-email" className="mb-1.5 block text-xs font-semibold text-muted-foreground">Email</label><input id="settings-email" type="email" value={user?.email ?? ''} readOnly className="w-full rounded-xl border border-border bg-muted/40 px-3.5 py-2.5 text-xs text-foreground outline-none" /></div>
+                    <p className="text-[10px] text-muted-foreground">Read-only — profile editing is not currently supported by the account API.</p>
                   </div>
-                  <button
-                    onClick={onToggleMode}
-                    className="px-4 py-2 rounded-xl border border-border bg-muted text-xs font-semibold text-foreground hover:bg-muted/80 cursor-pointer"
-                  >
-                    Switch to {mode === 'dark' ? 'Light' : 'Dark'}
-                  </button>
-                </div>
+                </section>
 
-                <div className="flex items-center justify-between border-b border-border pb-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-foreground">Currency Preference</h3>
-                    <p className="text-xs text-muted-foreground">Display currency symbol across dashboard</p>
+                <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                  <div className="mb-5"><h2 className="text-sm font-bold text-foreground">🎨 Appearance</h2><p className="mt-1 text-xs text-muted-foreground">Choose how Spendzy looks on this device</p></div>
+                  <div className="grid grid-cols-2 gap-3" role="group" aria-label="Theme mode">
+                    {(['light', 'dark'] as const).map((theme) => <button key={theme} type="button" aria-pressed={mode === theme} onClick={() => { if (mode !== theme) onToggleMode?.(); localStorage.setItem('spendzy_theme', theme); showPreferenceSaved(); }} className={`rounded-2xl border p-4 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 ${mode === theme ? 'border-violet-500 bg-violet-500/10 text-violet-500' : 'border-border bg-muted/30 text-muted-foreground hover:text-foreground'}`}><span className="block text-lg">{theme === 'light' ? '☀️' : '🌙'}</span><span className="mt-2 block text-xs font-bold">{theme === 'light' ? 'Light Mode' : 'Dark Mode'}</span></button>)}
                   </div>
-                  <CustomSelect
-                    value={currency}
-                    onChange={(value) => setCurrency(value as CurrencyCode)}
-                    options={[
-                      { value: 'USD', label: 'USD ($)', icon: '💵' },
-                      { value: 'EUR', label: 'EUR (€)', icon: '💶' },
-                      { value: 'INR', label: 'INR (₹)', icon: '₹' },
-                      { value: 'GBP', label: 'GBP (£)', icon: '💷' },
-                    ]}
-                    className="w-36"
-                  />
-                </div>
+                  <p className="mt-4 text-[10px] text-muted-foreground">This is the same theme setting used by the sidebar control.</p>
+                </section>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-foreground">Exit Dashboard</h3>
-                    <p className="text-xs text-muted-foreground">Return back to home landing page</p>
+                <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                  <div className="mb-5"><h2 className="text-sm font-bold text-foreground">💳 Financial Preferences</h2><p className="mt-1 text-xs text-muted-foreground">Set your preferred financial display and defaults</p></div>
+                  <div className="space-y-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold text-foreground">Currency</p><p className="text-[10px] text-muted-foreground">Display formatting only; stored monetary values are not converted.</p></div><CustomSelect value={currency} onChange={(value) => { setCurrency(value as CurrencyCode); showPreferenceSaved(); }} options={[{ value: 'INR', label: 'INR (₹)', icon: '₹' }, { value: 'USD', label: 'USD ($)', icon: '💵' }, { value: 'EUR', label: 'EUR (€)', icon: '💶' }, { value: 'GBP', label: 'GBP (£)', icon: '💷' }]} className="w-full sm:w-40" /></div>
+                    <div className="border-t border-border pt-4"><label htmlFor="default-transaction-type" className="text-xs font-bold text-foreground">Default Transaction Type</label><p className="mb-2 text-[10px] text-muted-foreground">Used when opening the Add Transaction form.</p><select id="default-transaction-type" value={defaultTransactionType} onChange={(event) => { const value = event.target.value as 'expense' | 'income'; setDefaultTransactionType(value); localStorage.setItem(DEFAULT_TRANSACTION_TYPE_KEY, value); showPreferenceSaved(); }} className="w-full rounded-xl border border-border bg-muted/40 px-3.5 py-2.5 text-xs text-foreground outline-none focus:ring-2 focus:ring-violet-500"><option value="expense">Expense</option><option value="income">Income</option></select></div>
                   </div>
-                  <button
-                    onClick={onExitDashboard}
-                    className="px-4 py-2 rounded-xl bg-destructive/10 text-destructive border border-destructive/20 text-xs font-semibold hover:bg-destructive/20 transition-colors cursor-pointer"
-                  >
-                    Exit to Landing
-                  </button>
-                </div>
+                </section>
+
+                <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                  <div className="mb-2"><h2 className="text-sm font-bold text-foreground">✨ AI Preferences</h2><p className="mt-1 text-xs text-muted-foreground">Control personalized financial analysis features</p></div>
+                  <div className="divide-y divide-border">
+                    <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-xs font-bold text-foreground">Personalized AI Insights</p><p className="text-[10px] text-muted-foreground">Allow Spendzy to generate insights from your financial activity.</p></div><PreferenceToggle label="Personalized AI Insights" checked={aiInsightsEnabled} onChange={(value) => saveBooleanPreference(AI_INSIGHTS_ENABLED_KEY, value, setAiInsightsEnabled)} /></div>
+                    <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-xs font-bold text-foreground">Predictive Forecasting</p><p className="text-[10px] text-muted-foreground">Enable spending and savings forecasts based on your recorded data.</p></div><PreferenceToggle label="Predictive Forecasting" checked={predictionsEnabled} onChange={(value) => saveBooleanPreference(PREDICTIONS_ENABLED_KEY, value, setPredictionsEnabled)} /></div>
+                  </div>
+                </section>
+
+                <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                  <div className="mb-2"><h2 className="text-sm font-bold text-foreground">🔔 Notifications</h2><p className="mt-1 text-xs text-muted-foreground">Choose which in-app budget alerts you want</p></div>
+                  <div className="divide-y divide-border">
+                    <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-xs font-bold text-foreground">Budget Warning</p><p className="text-[10px] text-muted-foreground">Notify me when a budget reaches 80%.</p></div><PreferenceToggle label="Budget Warning notifications" checked={budgetWarningEnabled} onChange={(value) => saveBooleanPreference(BUDGET_WARNING_ENABLED_KEY, value, setBudgetWarningEnabled)} /></div>
+                    <div className="flex items-center justify-between gap-4 py-4"><div><p className="text-xs font-bold text-foreground">Budget Exceeded</p><p className="text-[10px] text-muted-foreground">Notify me when a budget reaches or exceeds 100%.</p></div><PreferenceToggle label="Budget Exceeded notifications" checked={budgetExceededEnabled} onChange={(value) => saveBooleanPreference(BUDGET_EXCEEDED_ENABLED_KEY, value, setBudgetExceededEnabled)} /></div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Preferences are saved locally. Email, SMS, and push delivery are not enabled.</p>
+                </section>
+
+                <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                  <div className="mb-5"><h2 className="text-sm font-bold text-foreground">🔐 Account & Session</h2><p className="mt-1 text-xs text-muted-foreground">Manage your current session and navigation</p></div>
+                  <div className="flex flex-col gap-3 sm:flex-row"><button type="button" onClick={onLogout ?? onExitDashboard} className="flex-1 rounded-xl border border-border bg-muted px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-muted/80">Logout</button><button type="button" onClick={onReturnToLanding ?? onExitDashboard} className="flex-1 rounded-xl border border-violet-500/25 bg-violet-500/5 px-4 py-2.5 text-xs font-semibold text-violet-500 hover:bg-violet-500/10">Return to Landing Page</button></div>
+                  <p className="mt-4 text-[10px] text-muted-foreground">Neither action changes transactions, budgets, or other financial records.</p>
+                </section>
               </div>
             </div>
           )}
 
         </main>
       </div>
+
+      {monthlySetupFeedback && (
+        <div role="status" aria-live="polite" className="fixed bottom-5 right-5 z-[60] max-w-sm rounded-2xl border border-emerald-500/25 bg-card px-4 py-3 text-xs font-semibold text-emerald-600 shadow-xl dark:text-emerald-400">
+          {monthlySetupFeedback}
+        </div>
+      )}
+
+      {showMonthlySetup && (
+        <MonthlySetupModal
+          onClose={() => setShowMonthlySetup(false)}
+          onSaved={handleMonthlySetupSaved}
+        />
+      )}
 
       {/* Add/Edit Transaction Modal */}
       {showAddModal && (
@@ -1560,7 +1819,20 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                   <label className="text-xs font-semibold text-muted-foreground block mb-1">Type</label>
                   <select
                     value={newTx.type}
-                    onChange={(e) => setNewTx({ ...newTx, type: e.target.value as TransactionFormState['type'] })}
+                    onChange={(e) => {
+                      const type = e.target.value as TransactionFormState['type'];
+                      const compatibleCategories = type === 'income'
+                        ? ['Income', ...transactions.filter((transaction) => getTransactionType(transaction) === 'income').map((transaction) => transaction.category)]
+                        : [...DEFAULT_CATEGORIES.filter((category) => category !== 'Income'), ...transactions.filter((transaction) => getTransactionType(transaction) === 'expense').map((transaction) => transaction.category)];
+                      const categoryIsCompatible = compatibleCategories.some(
+                        (category) => category.toLowerCase() === newTx.category.toLowerCase(),
+                      );
+                      setNewTx({
+                        ...newTx,
+                        type,
+                        category: categoryIsCompatible ? newTx.category : type === 'income' ? 'Income' : 'Groceries',
+                      });
+                    }}
                     className="w-full rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs text-foreground focus:outline-none focus:border-violet-500"
                   >
                     <option value="expense">Expense (-)</option>
@@ -1574,7 +1846,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                   <CustomSelect
                     value={newTx.category}
                     onChange={(val) => setNewTx({ ...newTx, category: val })}
-                    options={transactionCategories}
+                    options={modalTransactionCategories}
                   />
               </div>
 

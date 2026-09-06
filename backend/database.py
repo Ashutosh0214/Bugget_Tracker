@@ -47,6 +47,14 @@ def _migrate_budgets_table(cursor: sqlite3.Cursor) -> None:
     """)
     cursor.execute("DROP TABLE budgets_legacy")
 
+
+def _migrate_transactions_table(cursor: sqlite3.Cursor) -> None:
+    columns = {row[1] for row in cursor.execute("PRAGMA table_info(transactions)").fetchall()}
+    if "source" not in columns:
+        cursor.execute(
+            "ALTER TABLE transactions ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'"
+        )
+
 def get_db():
     conn = sqlite3.connect(get_settings().database_path, timeout=10)
     conn.row_factory = sqlite3.Row
@@ -90,10 +98,12 @@ def init_db():
             date TEXT NOT NULL,
             status TEXT DEFAULT 'Completed',
             icon TEXT DEFAULT '💸',
+            source TEXT NOT NULL DEFAULT 'manual',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         """)
+        _migrate_transactions_table(cursor)
         _migrate_budgets_table(cursor)
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_transactions_user_date "
@@ -102,4 +112,8 @@ def init_db():
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_budgets_user_period "
             "ON budgets(user_id, year, month)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_transactions_user_source_date "
+            "ON transactions(user_id, source, date)"
         )

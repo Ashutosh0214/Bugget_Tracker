@@ -27,9 +27,23 @@ export interface TransactionData {
   date: string;
   status: string;
   icon: string;
+  source?: 'manual' | 'monthly_setup' | string;
 }
 
 export type TransactionWriteData = Omit<TransactionData, 'id'>;
+
+export interface MonthlySetupWriteData {
+  month: number;
+  year: number;
+  transactions: TransactionWriteData[];
+  allow_duplicates?: boolean;
+}
+
+export interface BulkTransactionResponse {
+  transactions: TransactionData[];
+  count: number;
+  message: string;
+}
 
 export interface BudgetData {
   id: number | string;
@@ -132,6 +146,11 @@ export const transactionApi = {
       method: 'POST',
       body: JSON.stringify(txData),
     }),
+  createMonthlySetup: (data: MonthlySetupWriteData): Promise<BulkTransactionResponse> =>
+    apiFetch<BulkTransactionResponse>('/transactions/bulk', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   update: (id: string | number, txData: TransactionWriteData): Promise<SingleTransactionResponse> =>
     apiFetch<SingleTransactionResponse>(`/transactions/${id}`, {
       method: 'PUT',
@@ -152,4 +171,15 @@ export const budgetApi = {
     apiFetch<{ budget: BudgetData }>(`/budgets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string | number): Promise<{ message: string; id: number }> =>
     apiFetch<{ message: string; id: number }>(`/budgets/${id}`, { method: 'DELETE' }),
+};
+
+export interface AIChatResponse {
+  reply: string;
+  source: 'deterministic' | 'gemini' | 'fallback';
+  forecast_warning: boolean;
+}
+
+export const aiApi = {
+  chat: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }> = []): Promise<AIChatResponse> =>
+    apiFetch<AIChatResponse>('/ai/chat', { method: 'POST', body: JSON.stringify({ message, history: history.slice(-10) }) }),
 };

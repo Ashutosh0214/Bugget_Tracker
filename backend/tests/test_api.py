@@ -134,3 +134,91 @@ def test_transaction_update_is_persistent_and_owner_scoped(client):
 def test_authentication_is_required(client):
     response = client.get("/api/transactions")
     assert response.status_code in (401, 403)
+
+
+def test_monthly_setup_bulk_is_atomic_duplicate_safe_and_user_scoped(client):
+    owner = create_user(client, "setup-owner")
+    other = create_user(client, "setup-other")
+    payload = {
+        "month": 10,
+        "year": 2026,
+        "transactions": [
+            {"name": "Monthly Income", "category": "Income", "amount": 50000, "date": "2026-10-01"},
+            {"name": "Groceries", "category": "Groceries", "amount": -5000, "date": "2026-10-01"},
+        ],
+    }
+
+    created = client.post(
+        "/api/transactions/bulk", headers=auth_headers(owner["token"]), json=payload
+    )
+    assert created.status_code == 201
+    assert created.json()["count"] == 2
+    assert {item["source"] for item in created.json()["transactions"]} == {"monthly_setup"}
+
+    duplicate = client.post(
+        "/api/transactions/bulk", headers=auth_headers(owner["token"]), json=payload
+    )
+    assert duplicate.status_code == 409
+    assert len(client.get("/api/transactions", headers=auth_headers(owner["token"])).json()["transactions"]) == 2
+
+    allowed = client.post(
+        "/api/transactions/bulk",
+        headers=auth_headers(owner["token"]),
+        json={**payload, "allow_duplicates": True},
+    )
+    assert allowed.status_code == 201
+    assert len(client.get("/api/transactions", headers=auth_headers(owner["token"])).json()["transactions"]) == 4
+
+    isolated = client.get("/api/transactions", headers=auth_headers(other["token"]))
+    assert isolated.status_code == 200
+    assert isolated.json()["transactions"] == []
+
+    invalid = client.post(
+        "/api/transactions/bulk",
+        headers=auth_headers(other["token"]),
+        json={**payload, "transactions": [payload["transactions"][0], {**payload["transactions"][1], "amount": 0}]},
+    )
+    assert invalid.status_code == 422
+    assert client.get("/api/transactions", headers=auth_headers(other["token"])).json()["transactions"] == []
+
+
+def test_monthly_setup_acceptance_totals_and_category_mapping(client):
+    user = create_user(client, "setup-totals")
+    amounts = [50000, -10000, -1500, -5000, -2000, -1000, -3000, -500]
+    names_and_categories = [
+        ("Monthly Income", "Income"),
+        ("House Rent", "Bills"),
+        ("Electricity Bill", "Bills"),
+        ("Groceries", "Groceries"),
+        ("Travel / Transport", "Transport"),
+        ("Entertainment", "Entertainment"),
+        ("Shopping", "Shopping"),
+        ("Miscellaneous", "Miscellaneous"),
+    ]
+    payload = {
+        "month": 11,
+        "year": 2026,
+        "transactions": [
+            {
+                "name": name,
+                "category": category,
+                "amount": amount,
+                "date": "2026-11-01",
+                "status": "Completed",
+            }
+            for (name, category), amount in zip(names_and_categories, amounts)
+        ],
+    }
+
+    response = client.post(
+        "/api/transactions/bulk", headers=auth_headers(user["token"]), json=payload
+    )
+    assert response.status_code == 201
+    persisted = client.get(
+        "/api/transactions", headers=auth_headers(user["token"])
+    ).json()["transactions"]
+    assert len(persisted) == 8
+    assert sum(item["amount"] for item in persisted if item["amount"] > 0) == 50000
+    assert -sum(item["amount"] for item in persisted if item["amount"] < 0) == 23000
+    assert sum(item["amount"] for item in persisted) == 27000
+    assert {(item["name"], item["category"]) for item in persisted} == set(names_and_categories)

@@ -1,4 +1,5 @@
 import type { BudgetData, TransactionData } from './api';
+import { classifyBudgetUsage } from './budgetStatus';
 
 export type InsightType = 'budget' | 'spending' | 'saving' | 'category' | 'trend';
 export type InsightSeverity = 'positive' | 'info' | 'warning' | 'critical';
@@ -21,6 +22,7 @@ export interface FinancialSummary {
   topCategory: { name: string; amount: number; percent: number } | null;
   budgetsExceeded: number;
   budgetsNearLimit: number;
+  budgetsGettingClose: number;
   health: 'excellent' | 'good' | 'fair' | 'needs-attention' | null;
   healthReason: string;
 }
@@ -72,11 +74,12 @@ export function generateFinancialInsights(
 
   const budgetUsage = budgets.map((budget) => ({
     budget,
-    percent: budget.amount > 0 ? (budget.spent / budget.amount) * 100 : 0,
+    ...classifyBudgetUsage(budget.spent, budget.amount),
     remaining: Math.max(0, budget.amount - budget.spent),
   }));
-  const budgetsExceeded = budgetUsage.filter(({ percent }) => percent >= 100).length;
-  const budgetsNearLimit = budgetUsage.filter(({ percent }) => percent >= 90 && percent < 100).length;
+  const budgetsExceeded = budgetUsage.filter(({ status }) => status === 'exceeded').length;
+  const budgetsNearLimit = budgetUsage.filter(({ status }) => status === 'almost-reached').length;
+  const budgetsGettingClose = budgetUsage.filter(({ status }) => status === 'getting-close').length;
 
   let health: FinancialSummary['health'] = null;
   let healthReason = 'Add income and expense activity to calculate your financial health.';
@@ -92,10 +95,10 @@ export function generateFinancialInsights(
   }
 
   const ranked: Array<FinancialInsight & { priority: number }> = [];
-  for (const { budget, percent, remaining } of budgetUsage) {
-    if (percent >= 100) ranked.push({ id: `budget-exceeded-${budget.id}`, type: 'budget', severity: 'critical', priority: 1, title: `${budget.category} budget exceeded`, message: `You've spent ${formatAmount(budget.spent)} against your ${formatAmount(budget.amount)} ${budget.category} budget.`, metric: `${percent.toFixed(0)}% used`, action: `Review recent ${budget.category} transactions.` });
-    else if (percent >= 90) ranked.push({ id: `budget-near-${budget.id}`, type: 'budget', severity: 'warning', priority: 3, title: `${budget.category} budget almost reached`, message: `You've used ${percent.toFixed(0)}% of your ${budget.category} budget with ${formatAmount(remaining)} remaining.`, metric: `${percent.toFixed(0)}% used`, action: `Review recent ${budget.category} transactions.` });
-    else if (percent >= 70) ranked.push({ id: `budget-close-${budget.id}`, type: 'budget', severity: 'info', priority: 5, title: `${budget.category} spending is getting close`, message: `You've used ${percent.toFixed(0)}% of your monthly ${budget.category} budget.`, metric: `${formatAmount(budget.spent)} / ${formatAmount(budget.amount)}`, ...(DISCRETIONARY_CATEGORIES.has(normalizedCategory(budget.category)) ? { action: `Review recent ${budget.category} transactions.` } : {}) });
+  for (const { budget, percent, remaining, status } of budgetUsage) {
+    if (status === 'exceeded') ranked.push({ id: `budget-exceeded-${budget.id}`, type: 'budget', severity: 'critical', priority: 1, title: `${budget.category} budget exceeded`, message: `You've spent ${formatAmount(budget.spent)} against your ${formatAmount(budget.amount)} ${budget.category} budget.`, metric: `${percent.toFixed(0)}% used`, action: `Review recent ${budget.category} transactions.` });
+    else if (status === 'almost-reached') ranked.push({ id: `budget-near-${budget.id}`, type: 'budget', severity: 'warning', priority: 3, title: `${budget.category} budget almost reached`, message: `You've used ${percent.toFixed(0)}% of your ${budget.category} budget with ${formatAmount(remaining)} remaining.`, metric: `${percent.toFixed(0)}% used`, action: `Review recent ${budget.category} transactions.` });
+    else if (status === 'getting-close') ranked.push({ id: `budget-close-${budget.id}`, type: 'budget', severity: 'info', priority: 5, title: `${budget.category} spending is getting close`, message: `You've used ${percent.toFixed(0)}% of your monthly ${budget.category} budget.`, metric: `${formatAmount(budget.spent)} / ${formatAmount(budget.amount)}`, ...(DISCRETIONARY_CATEGORIES.has(normalizedCategory(budget.category)) ? { action: `Review recent ${budget.category} transactions.` } : {}) });
   }
 
   if (monthlyIncome > 0 && monthlyExpense > monthlyIncome) ranked.push({ id: 'expenses-exceeded-income', type: 'saving', severity: 'critical', priority: 2, title: 'Expenses exceeded income', message: `You spent ${formatAmount(monthlyExpense - monthlyIncome)} more than your income this month.`, metric: formatAmount(netSavings) });
@@ -137,5 +140,5 @@ export function generateFinancialInsights(
 
   const seen = new Set<string>();
   const insights = ranked.sort((a, b) => a.priority - b.priority).filter((item) => !seen.has(item.id) && seen.add(item.id)).slice(0, 6).map(({ priority: _priority, ...item }) => item);
-  return { summary: { monthlyIncome, monthlyExpense, netSavings, savingsRate, topCategory, budgetsExceeded, budgetsNearLimit, health, healthReason }, insights, transactionCount: currentTransactions.length };
+  return { summary: { monthlyIncome, monthlyExpense, netSavings, savingsRate, topCategory, budgetsExceeded, budgetsNearLimit, budgetsGettingClose, health, healthReason }, insights, transactionCount: currentTransactions.length };
 }

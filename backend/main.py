@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 
 from config import get_settings
 from database import init_db
-from routers import auth_router, budget_router, transaction_router
+from routers import ai_router, auth_router, budget_router, transaction_router
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -40,6 +40,7 @@ app.add_middleware(
 app.include_router(auth_router.router)
 app.include_router(transaction_router.router)
 app.include_router(budget_router.router)
+app.include_router(ai_router.router)
 
 @app.exception_handler(HTTPException)
 async def custom_http_exception_handler(request, exc):

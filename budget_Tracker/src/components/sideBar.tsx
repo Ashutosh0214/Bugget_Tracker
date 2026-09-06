@@ -11,8 +11,6 @@ import {
   Wallet,
   ChevronLeft,
   ChevronRight,
-  Sun,
-  Moon,
   LogOut,
   LucideIcon
 } from 'lucide-react';
@@ -50,8 +48,6 @@ export default function Sidebar({
   onSelectTab, 
   collapsed = false, 
   onToggleCollapse,
-  mode = 'light',
-  onToggleMode,
   onExitDashboard
 }: SidebarProps) {
   const { user } = useAuth();
@@ -144,43 +140,26 @@ export default function Sidebar({
           );
         })}
 
-        {/* Divider */}
-        <div className="my-3 border-t border-border/80" />
+      </div>
 
-        {/* Settings Item */}
+      {/* Footer User & Controls */}
+      <div className="space-y-2 border-t border-border p-3">
+        {/* Settings Utility */}
         <button
           onClick={() => onSelectTab && onSelectTab('settings')}
           title={collapsed ? '⚙ Settings' : undefined}
-          className={`relative flex items-center w-full gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+          aria-label={collapsed ? 'Settings' : undefined}
+          className={`relative flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
             activeTab === 'settings'
-              ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/30 font-bold'
+              ? 'bg-violet-600 font-bold text-white shadow-lg shadow-violet-600/30'
               : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
           } ${collapsed ? 'justify-center px-0' : ''}`}
         >
           {activeTab === 'settings' && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white rounded-r-full" />
+            <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-white" />
           )}
-          <span className="text-base shrink-0">⚙</span>
+          <span className="shrink-0 text-base">⚙</span>
           {!collapsed && <span className="truncate text-left">Settings</span>}
-        </button>
-      </div>
-
-      {/* Footer User & Controls */}
-      <div className="p-3 border-t border-border space-y-2">
-        {/* Mode Switcher */}
-        <button
-          onClick={onToggleMode}
-          className={`flex items-center w-full gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer ${
-            collapsed ? 'justify-center px-0' : ''
-          }`}
-          title={mode === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-        >
-          {mode === 'dark' ? (
-            <Sun className="h-4 w-4 text-amber-400 shrink-0" />
-          ) : (
-            <Moon className="h-4 w-4 text-indigo-600 shrink-0" />
-          )}
-          {!collapsed && <span>{mode === 'dark' ? 'Light Theme' : 'Dark Theme'}</span>}
         </button>
 
         {/* User Info / Exit */}
@@ -207,6 +186,16 @@ export default function Sidebar({
             </button>
           )}
         </div>
+        {collapsed && onExitDashboard && (
+          <button
+            onClick={onExitDashboard}
+            className="flex w-full cursor-pointer items-center justify-center rounded-xl py-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            title="Log out"
+            aria-label="Log out"
+          >
+          <LogOut className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </aside>
   );
