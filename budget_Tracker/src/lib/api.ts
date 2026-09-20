@@ -1,4 +1,5 @@
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/+$/, '');
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/+$/, '');
+const API_ROOT_URL = `${API_BASE_URL}/api`;
 
 export class ApiError extends Error {
   constructor(message: string, public fieldErrors: Record<string, string> = {}, public status?: number) {
@@ -84,7 +85,8 @@ const getHeaders = (): Record<string, string> => {
 };
 
 export const apiFetch = async <T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${API_ROOT_URL}${normalizedEndpoint}`;
   const config: RequestInit = {
     ...options,
     headers: {

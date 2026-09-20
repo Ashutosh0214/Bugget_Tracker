@@ -16,7 +16,10 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "test.db"))
-    monkeypatch.setenv("CORS_ORIGINS", "http://localhost:5173")
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,https://bugget-tracker.vercel.app",
+    )
 
     import config
     config.get_settings.cache_clear()

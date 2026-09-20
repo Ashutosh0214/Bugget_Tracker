@@ -9,6 +9,12 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
+DEFAULT_CORS_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://bugget-tracker.vercel.app",
+)
+
 
 def _positive_int(name: str, default: int) -> int:
     raw_value = os.getenv(name, str(default))
@@ -50,7 +56,7 @@ def get_settings() -> Settings:
     origins = tuple(
         origin.strip().rstrip("/")
         for origin in os.getenv(
-            "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+            "CORS_ORIGINS", ",".join(DEFAULT_CORS_ORIGINS)
         ).split(",")
         if origin.strip()
     )
