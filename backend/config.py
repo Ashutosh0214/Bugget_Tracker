@@ -13,6 +13,7 @@ DEFAULT_CORS_ORIGINS = (
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://bugget-tracker.vercel.app",
+    "https://budget-tracker.vercel.app",
 )
 
 
@@ -44,7 +45,10 @@ class Settings:
 
 @lru_cache
 def get_settings() -> Settings:
-    app_env = os.getenv("APP_ENV", os.getenv("NODE_ENV", "development")).strip()
+    # Render's Python runtime does not set NODE_ENV=production. Never allow a
+    # missing APP_ENV or a copied development .env to enable local OAuth there.
+    app_env = ("production" if os.getenv("RENDER", "").lower() == "true"
+               else os.getenv("APP_ENV", os.getenv("NODE_ENV", "development")).strip())
     jwt_secret = os.getenv("JWT_SECRET", "").strip()
     if not jwt_secret:
         if app_env.lower() == "production":

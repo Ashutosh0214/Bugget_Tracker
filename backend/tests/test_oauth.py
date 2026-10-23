@@ -180,6 +180,88 @@ def test_production_callbacks_require_explicit_https(client, monkeypatch):
     assert client.get('/api/auth/oauth/google/start', params={'frontend_origin': ORIGIN, 'challenge': challenge(VERIFIER)}).status_code == 400
 
 
+@pytest.mark.parametrize('app_env', [None, 'development', 'production'])
+def test_render_uses_public_callback_even_with_missing_or_development_app_env(client, monkeypatch, app_env):
+    import config
+    configure(monkeypatch)
+    monkeypatch.setenv('RENDER', 'true')
+    monkeypatch.setenv('RENDER_EXTERNAL_URL', 'https://spendze-backend.onrender.com')
+    monkeypatch.setenv('NODE_ENV', 'development')
+    if app_env is None:
+        monkeypatch.delenv('APP_ENV', raising=False)
+    else:
+        monkeypatch.setenv('APP_ENV', app_env)
+    monkeypatch.delenv('OAUTH_BACKEND_URL', raising=False)
+    monkeypatch.setenv('OAUTH_FRONTEND_ORIGINS', 'https://budget-tracker.vercel.app')
+    config.get_settings.cache_clear()
+    assert config.get_settings().is_production
+    response = client.get('/api/auth/oauth/google/start', params={
+        'frontend_origin': 'https://budget-tracker.vercel.app', 'challenge': challenge(VERIFIER)}, follow_redirects=False)
+    assert response.status_code == 303
+    params = parse_qs(urlsplit(response.headers['location']).query)
+    assert params['redirect_uri'] == ['https://spendze-backend.onrender.com/api/auth/oauth/google/callback']
+    assert params['code_challenge_method'] == ['S256'] and params['nonce'] and params['state']
+    assert 'Secure' in response.headers['set-cookie']
+    assert 'HttpOnly' in response.headers['set-cookie']
+    assert 'SameSite=lax' in response.headers['set-cookie']
+
+
+@pytest.mark.parametrize('backend', ['http://127.0.0.1:8000', 'https://localhost:8000', 'https://127.0.0.2', 'https://[::1]'])
+def test_render_never_emits_an_explicit_loopback_callback(client, monkeypatch, backend):
+    import config
+    configure(monkeypatch)
+    monkeypatch.setenv('RENDER', 'true')
+    monkeypatch.setenv('APP_ENV', 'development')
+    monkeypatch.setenv('OAUTH_BACKEND_URL', backend)
+    config.get_settings.cache_clear()
+    with pytest.raises(OAuthFailure, match='unavailable'):
+        provider_config('google')
+
+
+def test_actual_frontend_is_allowed_by_default_without_removing_previous_origins(client, monkeypatch):
+    import config
+    monkeypatch.delenv('CORS_ORIGINS', raising=False)
+    config.get_settings.cache_clear()
+    origins = config.get_settings().cors_origins
+    assert 'https://budget-tracker.vercel.app' in origins
+    assert 'https://bugget-tracker.vercel.app' in origins
+    assert 'http://localhost:5173' in origins
+
+
+def test_render_roundtrip_binds_state_cookie_and_handoff_to_correct_hosts(client, monkeypatch):
+    import config
+    import importlib
+    import main
+    configure(monkeypatch)
+    identity(monkeypatch)
+    monkeypatch.setenv('RENDER', 'true')
+    monkeypatch.setenv('RENDER_EXTERNAL_URL', 'https://spendze-backend.onrender.com')
+    monkeypatch.delenv('OAUTH_BACKEND_URL', raising=False)
+    monkeypatch.setenv('OAUTH_FRONTEND_ORIGINS', 'https://budget-tracker.vercel.app')
+    monkeypatch.setenv('CORS_ORIGINS', 'https://budget-tracker.vercel.app')
+    config.get_settings.cache_clear()
+    app = importlib.reload(main).app
+    from fastapi.testclient import TestClient
+    origin = 'https://budget-tracker.vercel.app'
+    with TestClient(app, base_url='https://spendze-backend.onrender.com') as hosted:
+        preflight = hosted.options('/api/auth/oauth/exchange', headers={
+            'Origin': origin, 'Access-Control-Request-Method': 'POST',
+            'Access-Control-Request-Headers': 'content-type'})
+        assert preflight.status_code == 200
+        assert preflight.headers['access-control-allow-origin'] == origin
+        params = begin(hosted, origin=origin)
+        cookie = next(iter(hosted.cookies.jar))
+        assert cookie.domain == 'spendze-backend.onrender.com' and cookie.secure
+        # Even with the same application/database, a loopback callback cannot
+        # receive the Secure, host-only browser cookie issued on Render.
+        with TestClient(app, base_url='http://127.0.0.1:8000') as wrong_host:
+            wrong_host.cookies.update(hosted.cookies)
+            assert finish(wrong_host, params['state'][0]).status_code == 400
+        result = redeem(hosted, finish(hosted, params['state'][0]), origin=origin)
+        assert result.status_code == 200
+        assert hosted.get('/api/auth/me', headers={'Authorization': f"Bearer {result.json()['token']}"}).status_code == 200
+
+
 @pytest.mark.anyio
 @pytest.mark.parametrize('anyio_backend', ['asyncio'])
 @pytest.mark.parametrize('provider_name', ['google', 'apple'])

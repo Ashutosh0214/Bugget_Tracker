@@ -71,10 +71,24 @@ def provider_config(name):
     if name not in PROVIDERS:
         raise OAuthFailure('unavailable')
     production = get_settings().is_production
-    backend = os.getenv('OAUTH_BACKEND_URL', '' if production else 'http://127.0.0.1:8000').strip().rstrip('/')
+    backend = os.getenv('OAUTH_BACKEND_URL', '').strip()
+    if not backend and os.getenv('RENDER', '').lower() == 'true':
+        backend = os.getenv('RENDER_EXTERNAL_URL', '').strip()
+    if not backend and not production:
+        backend = 'http://127.0.0.1:8000'
+    backend = backend.rstrip('/')
     if (not valid_origin(backend) or (production and not backend.startswith('https://'))
             or (backend.startswith('http://') and urlsplit(backend).hostname not in ('localhost', '127.0.0.1'))):
         raise OAuthFailure('unavailable')
+    if production:
+        hostname = urlsplit(backend).hostname.rstrip('.').lower()
+        try:
+            address = ipaddress.ip_address(hostname)
+            local = address.is_loopback or address.is_unspecified
+        except ValueError:
+            local = hostname == 'localhost' or hostname.endswith('.localhost')
+        if local:
+            raise OAuthFailure('unavailable')
     client_id = os.getenv(f'{name.upper()}_CLIENT_ID', '').strip()
     if not client_id:
         raise OAuthFailure('unavailable')

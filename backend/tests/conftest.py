@@ -14,6 +14,8 @@ if str(BACKEND_DIR) not in sys.path:
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.delenv("RENDER_EXTERNAL_URL", raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "")
     monkeypatch.setenv("RESEND_API_KEY", "")
     monkeypatch.setenv("EMAIL_PROVIDER", "resend")
