@@ -53,7 +53,9 @@ export function AuthPage({ initialMode = 'signin', onBackToHome, onSuccess, onRe
       setIsSuccess(false);
       setErrorMsg(error instanceof ApiError && error.status === 401
         ? 'Invalid email or password'
-        : 'Unable to reach the server. Please try again.');
+        : error instanceof TypeError
+          ? 'Unable to reach the server. Please try again.'
+          : error instanceof Error ? error.message : 'Login failed. Please try again.');
     } finally {
       loginPending.current = false;
       setIsLoading(false);
