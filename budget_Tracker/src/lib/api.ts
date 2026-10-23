@@ -1,6 +1,10 @@
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() || 'http://127.0.0.1:8000').replace(/\/+$/, '');
 // Accept either a server origin or an API root without duplicating /api.
+<<<<<<< HEAD
 export const API_ROOT_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
+=======
+const API_ROOT_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
+>>>>>>> 5a27e51bcd8e7c7ae2d3706660cc9bb2f664fcb3
 
 export class ApiError extends Error {
   constructor(message: string, public fieldErrors: Record<string, string> = {}, public status?: number) {

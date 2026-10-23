@@ -15,7 +15,11 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from auth import hash_password  # noqa: E402
+<<<<<<< HEAD
 from database import db_connection, revoke_user_sessions  # noqa: E402
+=======
+from database import db_connection  # noqa: E402
+>>>>>>> 5a27e51bcd8e7c7ae2d3706660cc9bb2f664fcb3
 from schemas import UserSignup  # noqa: E402
 
 
@@ -79,7 +83,10 @@ def reset_password(email: str) -> int:
             )
             if cursor.rowcount != 1:
                 raise RuntimeError("User changed while resetting password")
+<<<<<<< HEAD
             revoke_user_sessions(conn, user['id'])
+=======
+>>>>>>> 5a27e51bcd8e7c7ae2d3706660cc9bb2f664fcb3
     except Exception:
         print("Password reset failed.", file=sys.stderr)
         return 1
