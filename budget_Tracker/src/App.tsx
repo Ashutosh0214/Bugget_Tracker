@@ -24,7 +24,7 @@ const THEME_STORAGE_KEY = 'spendzy_theme';
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, loading: authLoading, logout } = useAuth();
+  const { user, isAuthenticated, loading: authLoading, logout } = useAuth();
   const [mode, setMode] = useState<'light' | 'dark'>(() => localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light');
   const routeViewMode =
     location.state && typeof location.state === 'object' && 'viewMode' in location.state
@@ -103,7 +103,7 @@ function App() {
   const handleLogout = () => {
     logout();
     setViewMode('landing');
-    navigate('/', { replace: true });
+    navigate('/login', { replace: true });
   };
 
   const handleReturnToLanding = () => {
@@ -119,6 +119,9 @@ function App() {
 
     return (
       <DashboardLayout
+        key={user?.id}
+        newAccount={location.state?.newAccount === true}
+        accountLinked={location.state?.accountLinked === true}
         mode={mode}
         onToggleMode={toggleMode}
         onExitDashboard={handleLogout}

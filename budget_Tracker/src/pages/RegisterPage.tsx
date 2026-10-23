@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowLeft,
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/lib/api';
+import SocialLoginButtons from '@/components/SocialLoginButtons';
 
 interface RegisterFormData {
   name: string;
@@ -34,7 +35,8 @@ const INITIAL_FORM: RegisterFormData = {
 };
 
 export default function RegisterPage() {
-  const { signup } = useAuth();
+  const { signup, user, isAuthenticated, loading } = useAuth();
+  const navigate = useNavigate();
   const submissionPending = useRef(false);
   const [formData, setFormData] = useState<RegisterFormData>(INITIAL_FORM);
   const [errors, setErrors] = useState<RegisterErrors>({});
@@ -43,6 +45,14 @@ export default function RegisterPage() {
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [socialBusy, setSocialBusy] = useState(false);
+  const socialPending = useRef(false);
+
+  useEffect(() => {
+    if (!loading && !isLoading && isAuthenticated) {
+      navigate('/dashboard', { replace: true, state: { newAccount: submitted } });
+    }
+  }, [loading, isLoading, isAuthenticated, submitted, navigate]);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -85,7 +95,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submissionPending.current || submitted) return;
+    if (submissionPending.current || socialPending.current || submitted) return;
     setSubmitted(false);
     setApiError('');
     if (!validateForm()) return;
@@ -205,7 +215,7 @@ export default function RegisterPage() {
           {submitted && (
             <div role="status" className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs font-medium text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="size-4 shrink-0" />
-              <span>Account created successfully. You are signed in. <Link to="/" className="underline">Continue to Spendzy</Link></span>
+              <span>Welcome to Spendze{user?.name ? `, ${user.name.split(' ')[0]}` : ''}! Your account is ready.</span>
             </div>
           )}
 
@@ -217,7 +227,7 @@ export default function RegisterPage() {
           )}
 
           <form onSubmit={handleSubmit} noValidate aria-busy={isLoading}>
-            <fieldset disabled={isLoading || submitted} className="space-y-3.5">
+            <fieldset disabled={loading || isLoading || submitted || socialBusy} className="space-y-3.5">
             <div>
               <label htmlFor="name" className="mb-1 block text-[11px] font-semibold text-muted-foreground">Full Name</label>
               <div className="relative">
@@ -244,6 +254,17 @@ export default function RegisterPage() {
             </Button>
             </fieldset>
           </form>
+
+          <div className="my-3 flex w-full items-center justify-center">
+            <div className="h-px w-full bg-border" />
+            <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">OR</span>
+            <div className="h-px w-full bg-border" />
+          </div>
+          <SocialLoginButtons
+            providersToShow={['google']}
+            disabled={loading || isLoading || submitted || socialBusy}
+            onBusyChange={(busy) => { socialPending.current = busy; setSocialBusy(busy); }}
+          />
 
           <p className="text-center text-xs text-muted-foreground">
             Already have an account?{' '}

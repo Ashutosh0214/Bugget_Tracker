@@ -38,7 +38,7 @@ async def chat(data: AIChatRequest, current_user: dict = Depends(get_current_use
         return {
             "reply": deterministic,
             "source": "deterministic",
-            "forecast_warning": False,
+            "forecast_warning": bool(re.search(r'forecast|projected|estimate', deterministic, re.IGNORECASE)),
             "context": next_context,
         }
     try:

@@ -14,6 +14,16 @@ if str(BACKEND_DIR) not in sys.path:
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("RESEND_API_KEY", "")
+    monkeypatch.setenv("EMAIL_PROVIDER", "resend")
+    monkeypatch.setenv("PASSWORD_RESET_FROM", "")
+    monkeypatch.setenv("PASSWORD_RESET_FRONTEND_URL", "http://localhost:5173")
+    for provider in ("GOOGLE", "GITHUB", "APPLE"):
+        monkeypatch.setenv(f"{provider}_CLIENT_ID", "")
+        monkeypatch.setenv(f"{provider}_CLIENT_SECRET", "")
+    monkeypatch.delenv("OAUTH_FRONTEND_ORIGINS", raising=False)
+    monkeypatch.setenv("OAUTH_BACKEND_URL", "http://127.0.0.1:8000")
     monkeypatch.setenv("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "test.db"))
     monkeypatch.setenv(

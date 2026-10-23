@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Sidebar from './sideBar';
 import CustomSelect from './ui/CustomSelect';
 import MonthlySetupModal from './MonthlySetupModal';
+import SocialLoginButtons from './SocialLoginButtons';
 import TextAnimation from '@/components/ui/staggerText';
 import { useAuth } from '../context/AuthContext';
 import { aiApi, budgetApi, BudgetData, BudgetWriteData, transactionApi, TransactionData, TransactionWriteData } from '../lib/api';
@@ -34,6 +35,8 @@ import {
 } from 'lucide-react';
 
 export interface DashboardLayoutProps {
+  accountLinked?: boolean;
+  newAccount?: boolean;
   mode?: 'light' | 'dark';
   onToggleMode?: () => void;
   onExitDashboard?: () => void;
@@ -197,7 +200,7 @@ const getBudgetStatus = (percent: number) => {
   return { label: 'Safe', bar: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' };
 };
 
-export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDashboard, onLogout, onReturnToLanding }: DashboardLayoutProps) {
+export default function DashboardLayout({ mode = 'light', newAccount = false, accountLinked = false, onToggleMode, onExitDashboard, onLogout, onReturnToLanding }: DashboardLayoutProps) {
   const { user, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
@@ -786,30 +789,26 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
       } else {
         const categories = Array.from(new Set([...transactions.map((item) => item.category), ...budgets.map((item) => item.category)].filter(Boolean)));
         const detected = detectFinancialIntent(normalizedQuestion, categories);
-        if (detected.intent === 'unknown') {
-          try {
-            const recentHistory = chatMessages.slice(-10).map((message) => ({
-              role: message.sender === 'ai' ? 'assistant' as const : 'user' as const,
-              content: message.text,
-            }));
-            const response = await aiApi.chat(normalizedQuestion, recentHistory, chatContextRef.current);
+        try {
+          const recentHistory = chatMessages.slice(-10).map((message) => ({
+            role: message.sender === 'ai' ? 'assistant' as const : 'user' as const,
+            content: message.text.slice(0, 2000),
+          }));
+          const response = await aiApi.chat(normalizedQuestion, recentHistory, chatContextRef.current);
+          // New Chat can finish while a previous request is still in flight.
+          if (chatSession !== chatSessionRef.current) return;
+          if (response.source === 'fallback' && detected.intent !== 'unknown') {
+            const result = answerFinancialQuestionWithContext(
+              normalizedQuestion, transactions, budgets, currentDate, formatCurrency, chatContextRef.current,
+            );
+            answer = result.text;
+            chatContextRef.current = result.context;
+          } else {
             answer = response.reply;
             chatContextRef.current = response.context;
-          } catch (error: unknown) {
-            console.error('Conversational assistant request failed:', error);
-            answer = "Sorry, I couldn't process that request. Please try again.";
           }
-        } else {
-          const result = answerFinancialQuestionWithContext(
-            normalizedQuestion,
-            transactions,
-            budgets,
-            currentDate,
-            formatCurrency,
-            chatContextRef.current,
-          );
-          answer = result.text;
-          chatContextRef.current = result.context;
+        } catch {
+          answer = "I couldn't reach the assistant. Your message wasn't processed. Please try again.";
         }
       }
       const remainingDelay = Math.max(0, 250 - (Date.now() - startedAt));
@@ -919,7 +918,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                   </span>
                   <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
                     <TextAnimation divideBy="word" delay={0.1}>
-                      {`Welcome back, ${userFirstName}! 👋`}
+                      <span role={newAccount || accountLinked ? 'status' : undefined}>{accountLinked ? `Account linked successfully, ${userFirstName}!` : newAccount ? `Welcome to Spendze, ${userFirstName}! Your account is ready.` : `Welcome back, ${userFirstName}! 👋`}</span>
                     </TextAnimation>
                   </h1>
                   <p className="text-xs sm:text-sm text-violet-100/90">
@@ -1652,13 +1651,13 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
               </div>
 
               {/* Message List */}
-              <div ref={chatMessagesRef} className="flex-1 space-y-4 overflow-y-auto p-6">
+              <div ref={chatMessagesRef} role="log" aria-live="polite" aria-relevant="additions" className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
                 {chatMessages.length === 0 && (
                   <>
-                    <div className="flex items-start gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs">🤖</div><div className="max-w-md rounded-2xl rounded-tl-none border border-border bg-muted/80 p-4 text-xs leading-relaxed text-foreground">{transactions.length > 0 ? 'Hi! I can help you understand your spending, income, budgets, and forecasts. What would you like to know?' : 'Add your first transaction and I’ll help you understand your financial activity.'}</div></div>
+                    <div className="flex items-start gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs">🤖</div><div className="max-w-md rounded-2xl rounded-tl-none border border-border bg-muted/80 p-4 text-xs leading-relaxed text-foreground">{transactions.length > 0 ? 'Hi! I can help you understand your spending, income, budgets, and forecasts. What would you like to know?' : 'Hi! Want to plan a budget or add your first expense? You can ask me where to start.'}</div></div>
                     <p className="pl-11 text-[11px] text-muted-foreground">Ask Spendzy about your spending, budgets, savings, or financial trends.</p>
                     <div className="flex flex-wrap gap-2 pl-11">
-                      {['Give me a financial summary', 'Where am I spending the most?', 'Check my budgets', "Predict this month's spending"].map((suggestion) => <button key={suggestion} type="button" onClick={() => submitChatQuestion(suggestion)} disabled={transactionsLoading || budgetsLoading} className="rounded-full border border-violet-500/25 bg-violet-500/5 px-3 py-2 text-[10px] font-semibold text-violet-500 hover:bg-violet-500/10 disabled:cursor-not-allowed disabled:opacity-50">{suggestion}</button>)}
+                      {['Did I add anything today?', 'How much did I spend this month?', 'Where am I spending the most?', 'Check my budgets'].map((suggestion) => <button key={suggestion} type="button" onClick={() => submitChatQuestion(suggestion)} disabled={transactionsLoading || budgetsLoading} className="rounded-full border border-violet-500/25 bg-violet-500/5 px-3 py-2 text-[10px] font-semibold text-violet-500 hover:bg-violet-500/10 disabled:cursor-not-allowed disabled:opacity-50">{suggestion}</button>)}
                     </div>
                   </>
                 )}
@@ -1674,7 +1673,7 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
                     }`}>
                       {msg.sender === 'user' ? userInitials : '🤖'}
                     </div>
-                    <div className={`max-w-md whitespace-pre-line rounded-2xl p-4 text-xs leading-relaxed ${
+                    <div className={`max-w-[85%] break-words whitespace-pre-line sm:max-w-md rounded-2xl p-4 text-xs leading-relaxed ${
                       msg.sender === 'user'
                         ? 'bg-violet-600 text-white rounded-tr-none shadow-md'
                         : 'bg-muted/80 text-foreground border border-border rounded-tl-none'
@@ -1690,9 +1689,11 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
               <form onSubmit={handleSendChatMessage} className="p-4 border-t border-border bg-card flex gap-2">
                 <textarea
                   rows={1}
+                  maxLength={1000}
+                  aria-label="Message Spendzy"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submitChatQuestion(chatInput); } }}
+                  onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submitChatQuestion(chatInput); } }}
                   placeholder="Ask Spendzy AI anything about your money flow..."
                   className="max-h-24 flex-1 resize-none rounded-xl border border-border bg-muted/40 px-4 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                 />
@@ -1711,6 +1712,10 @@ export default function DashboardLayout({ mode = 'light', onToggleMode, onExitDa
           {/* TAB 8: SETTINGS */}
           {activeTab === 'settings' && (
             <div className="space-y-6 animate-in fade-in duration-300">
+              <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                <h2 className="mb-3 text-sm font-bold text-foreground">Linked sign-in accounts</h2>
+                <div className="max-w-md"><SocialLoginButtons linking /></div>
+              </section>
               <div className="flex items-end justify-between gap-4">
                 <div><h1 className="text-2xl font-bold tracking-tight text-foreground">⚙️ Settings & Preferences</h1><p className="text-xs text-muted-foreground">Manage your Spendzy account and preferences</p></div>
                 <p aria-live="polite" className={`text-xs font-semibold text-emerald-500 transition-opacity ${preferenceFeedback ? 'opacity-100' : 'opacity-0'}`}>{preferenceFeedback || 'Preference saved'}</p>

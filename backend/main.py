@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 
 from config import get_settings
 from database import init_db
-from routers import ai_router, auth_router, budget_router, transaction_router
+from routers import ai_router, auth_router, budget_router, transaction_router, oauth_router, password_router
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -38,6 +38,8 @@ app.add_middleware(
 
 # Include Routers
 app.include_router(auth_router.router)
+app.include_router(oauth_router.router)
+app.include_router(password_router.router)
 app.include_router(transaction_router.router)
 app.include_router(budget_router.router)
 app.include_router(ai_router.router)
@@ -45,8 +47,8 @@ app.include_router(ai_router.router)
 @app.exception_handler(HTTPException)
 async def custom_http_exception_handler(request, exc):
     if isinstance(exc.detail, dict) and "message" in exc.detail:
-        return JSONResponse(status_code=exc.status_code, content=exc.detail)
-    return JSONResponse(status_code=exc.status_code, content={"message": str(exc.detail)})
+        return JSONResponse(status_code=exc.status_code, content=exc.detail, headers=exc.headers)
+    return JSONResponse(status_code=exc.status_code, content={"message": str(exc.detail)}, headers=exc.headers)
 
 
 @app.exception_handler(RequestValidationError)

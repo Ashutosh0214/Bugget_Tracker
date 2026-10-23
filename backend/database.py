@@ -88,6 +88,22 @@ def init_db():
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
         """)
+        columns = {row[1] for row in cursor.execute('PRAGMA table_info(users)')}
+        if 'session_version' not in columns:
+            cursor.execute('ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS password_resets (
+                token_hash TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                password_fingerprint TEXT NOT NULL,
+                expires_at INTEGER NOT NULL
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS auth_rate_limits (
+                bucket_hash TEXT PRIMARY KEY, count INTEGER NOT NULL, expires_at INTEGER NOT NULL
+            )
+        ''')
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,6 +119,36 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         """)
+        # Additive OAuth tables: existing users and financial records stay untouched.
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS oauth_identities (
+                provider TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                PRIMARY KEY (provider, subject),
+                UNIQUE (user_id, provider)
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS oauth_flows (
+                state_hash TEXT PRIMARY KEY, provider TEXT NOT NULL,
+                browser_hash TEXT NOT NULL, verifier TEXT NOT NULL, nonce TEXT NOT NULL,
+                frontend_origin TEXT NOT NULL, handoff_challenge TEXT NOT NULL,
+                link_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                expires_at INTEGER NOT NULL
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS oauth_handoffs (
+                code_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                challenge TEXT NOT NULL, frontend_origin TEXT NOT NULL,
+                new_account INTEGER NOT NULL, linked INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL
+            )
+        """)
+        flow_columns = {row[1] for row in cursor.execute('PRAGMA table_info(oauth_flows)')}
+        if 'link_session_version' not in flow_columns:
+            cursor.execute('ALTER TABLE oauth_flows ADD COLUMN link_session_version INTEGER NOT NULL DEFAULT 0')
         _migrate_transactions_table(cursor)
         _migrate_budgets_table(cursor)
         cursor.execute(
@@ -117,3 +163,11 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS idx_transactions_user_source_date "
             "ON transactions(user_id, source, date)"
         )
+
+
+def revoke_user_sessions(conn, user_id):
+    """Called in the same transaction as a password change."""
+    conn.execute('UPDATE users SET session_version=session_version+1 WHERE id=?', (user_id,))
+    conn.execute('DELETE FROM password_resets WHERE user_id=?', (user_id,))
+    conn.execute('DELETE FROM oauth_flows WHERE link_user_id=?', (user_id,))
+    conn.execute('DELETE FROM oauth_handoffs WHERE user_id=?', (user_id,))

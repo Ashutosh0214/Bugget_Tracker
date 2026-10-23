@@ -51,7 +51,7 @@ def login(data: UserLogin):
         email=user["email"],
         created_at=str(user["created_at"]) if user["created_at"] else None
     )
-    token = generate_token(user["id"], user["email"], user["name"])
+    token = generate_token(user["id"], user["email"], user["name"], user['session_version'])
     
     return {
         "user": user_data,
